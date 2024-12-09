@@ -1,7 +1,6 @@
 from PIL import Image 
 
 
-
 class PaintingGenerator:
 
     def makePaiting(self, scale, painting, art):
@@ -13,14 +12,12 @@ class PaintingGenerator:
         width, height = frame.size
         height = int(height/16)
         width = int(width/16)
-        print(height, width)
         diff = int(scale)
         painting_size = (pack_res*width, pack_res*height)
         art_size = ((pack_res*width)-(diff*2), (pack_res*height)-(diff*2))
 
         painting = frame.resize(painting_size, Image.NEAREST)
-        common = Image.open("./assets/common.png").convert('RGBA')
-        blackout = common.resize(art_size)
+        blackout = Image.new('RGB', (art_size), color = 'black')
         art_resized = art.resize(art_size)
           
 
@@ -33,5 +30,5 @@ class PaintingGenerator:
 if __name__ == "__main__":
     art = Image.open("../input.jpg")
     maker = PaintingGenerator()
-    painting = maker.makePaiting(1, "burning_skull", art)
+    painting = maker.makePaiting(16, "wither.png", art)
     painting.show()
