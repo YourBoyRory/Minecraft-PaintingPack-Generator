@@ -10,7 +10,7 @@ class ResourcePackBuilder:
     packData = {}
     
     def __init__(self, packName, packIcon, mcMeta):
-        self.packName = f'{packName}.zip'
+        self.packName = packName
         if mcMeta != None:
             packMeta = json.dumps(mcMeta, indent=4)
             self.addFile("pack.mcmeta", str(packMeta))
@@ -21,9 +21,12 @@ class ResourcePackBuilder:
 
     def addFile(self, filePath, file):
         self.packData[filePath] = file
+
+    def delFile(self, filePath):
+        del self.packData[filePath]
         
-    def writePack(self):
-        with zipfile.ZipFile(self.packName, 'w') as zipf:
+    def writePack(self, packPath):
+        with zipfile.ZipFile(packPath, 'w') as zipf:
             for filePath, file in self.packData.items():
                 zipf.writestr(filePath, file)
 
@@ -47,4 +50,4 @@ if __name__ == "__main__":
     
     maker = ResourcePackBuilder("furry_paintings", "../pack.png" , mcMeta)
     maker.addFile(f'/assets/minecraft/textures/painting/{image_name}', image_bytes.read())
-    maker.writePack()
+    maker.writePack("./furry_paintings.zip")
