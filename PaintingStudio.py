@@ -2,7 +2,7 @@ import os
 import json
 import sys
 from PyQt5.QtCore import Qt, QSize, QStringListModel
-from PyQt5.QtGui import QPixmap, QImage, QIcon, QColor
+from PyQt5.QtGui import QPixmap, QImage, QIcon, QColor, QFont
 from PyQt5.QtWidgets import QMessageBox, QColorDialog, QMenu, QAction, QListWidgetItem, QListWidget, QTabWidget, QApplication, QWidget, QVBoxLayout, QComboBox, QLabel, QFrame, QHBoxLayout, QFileDialog, QSizePolicy, QSpinBox, QPushButton
 from io import BytesIO
 from PIL import Image 
@@ -18,6 +18,7 @@ class PaintingStudio(QWidget):
             self.paintings = json.load(file)
         self.newPack()
         self.used_paintings = []
+        self.file_path_stack = []
         self.lock = True
         self.updating = False
         self.backgroundColor = "#000000"
@@ -47,6 +48,9 @@ class PaintingStudio(QWidget):
         #self.listwidget.setStyleSheet(style)
         self.listwidget.setContextMenuPolicy(3)
         self.listwidget.customContextMenuRequested.connect(self.show_context_menu)
+        font = QFont()
+        font.setPointSize(24)
+        self.listwidget.setFont(font)
         tab2_layout.addWidget(self.listwidget)
         tab2.setLayout(tab2_layout)
         
@@ -113,6 +117,7 @@ class PaintingStudio(QWidget):
 
         # Label to show the dragged image file name and details
         self.image_label = QLabel("Drop image here to customize your painting", self)
+        self.path_label = QLabel("", self)
         
         # Ensure the label scales its size to fit the image
         self.image_label.setAlignment(Qt.AlignCenter)
@@ -124,6 +129,7 @@ class PaintingStudio(QWidget):
         tab1_layout.addLayout(scale_layout)
         tab1_layout.addLayout(painting_layout)
         tab1_layout.addWidget(self.image_label)
+        tab1_layout.addWidget(self.path_label)
         tab1_layout.addLayout(button_layout)
         
         self.tab_widget.addTab(tab1, "Painting Studio")
@@ -148,17 +154,19 @@ class PaintingStudio(QWidget):
         self.painting_maker = PaintingGenerator()
     
     def setButtonEnabled(self, value):
+        if self.listwidget.count() == 0:
+            self.export_button.setEnabled(False)
+        else:
+            self.export_button.setEnabled(True)
+        self.add_button.setEnabled(value)
+        return
         self.detail_spin_box.setEnabled(value)
         self.size_combo_box.setEnabled(value)
         self.painting_combo_box.setEnabled(value)
         self.frame_combo_box.setEnabled(value)
         self.scale_combo_box.setEnabled(value)
-        self.add_button.setEnabled(value)
+        
         self.color_button.setEnabled(value)
-        if self.listwidget.count() == 0:
-            self.export_button.setEnabled(False)
-        else:
-            self.export_button.setEnabled(True)
 
     def show_context_menu(self, pos):
         global_pos = self.listwidget.mapToGlobal(pos)
@@ -174,6 +182,10 @@ class PaintingStudio(QWidget):
         self.listwidget.takeItem(self.listwidget.row(item))
         self.updateUsedPaintings()
         #self.updateComboBox()
+        if self.listwidget.count() == 0:
+            self.export_button.setEnabled(False)
+        else:
+            self.export_button.setEnabled(True)
     
     def writeImage(self):
         self.lock = True
@@ -185,11 +197,14 @@ class PaintingStudio(QWidget):
         item1 = QListWidgetItem(paintingName)
         item1.setIcon(QIcon(self.image_label.pixmap()))  # Set QPixmap as an icon
         self.listwidget.addItem(item1)
+        self.listwidget.setIconSize(QSize(256, 256))
         self.updateUsedPaintings()
         self.updateComboBox()
         self.setButtonEnabled(False)
         self.image_label.clear()
         self.image_label.setText("Drop Next image here")
+        self.path_label.setText("")
+        self.handle_dropped_image()
      
     def updateUsedPaintings(self):
         items = []
@@ -213,8 +228,9 @@ class PaintingStudio(QWidget):
 
     def dropEvent(self, event):
         # Get the dropped file path
-        file_path = event.mimeData().urls()[0].toLocalFile()
-        self.handle_dropped_image(file_path)
+        for file in event.mimeData().urls():
+            self.file_path_stack.append(file)
+        self.handle_dropped_image()
 
     def showColorDialog(self):
         # Open the QColorDialog
@@ -225,15 +241,21 @@ class PaintingStudio(QWidget):
             self.backgroundColor = color.name()
         self.updateImage()
 
-    def handle_dropped_image(self, file_path):
-        try:
-            self.lock = False
-            self.file_path = file_path
-            self.updateImage()
-            self.setButtonEnabled(True)
-        except Exception as e:
-            self.lock = True
-            self.image_label.setText(f"Failed to open image: {str(e)}")
+    def handle_dropped_image(self):
+        if len(self.file_path_stack) > 0:
+            try:
+                file_path = self.file_path_stack.pop()
+                self.lock = False
+                self.file_path = file_path.toLocalFile()
+                self.path_label.setText(f"{self.file_path }")
+                self.updateImage()
+                self.setButtonEnabled(True)
+            except Exception as e:
+                self.lock = True
+                self.handle_dropped_image()
+                self.image_label.setText(f"Failed to open image: {str(e)}")
+        else:
+            print("Tree Done.")
 
     def pushImageUpdate(self):
         if self.lock == False:

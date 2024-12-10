@@ -50,6 +50,7 @@ class PaintingGenerator:
         new_width = int((art_width / art_height) * target_height)
         diff = ((target_width-new_width)//2, 0)
         if (new_height > target_height) or (new_width > target_width):
+            print("Warning: Switching Methods")
             new_width = target_width
             new_height = int((art_height / art_width) * target_width)
             diff = (0,(target_height-new_height)//2)
@@ -66,7 +67,8 @@ class PaintingGenerator:
         new_width = target_width
         new_height = int((art_height / art_width) * target_width)
         diff = (0,(target_height-new_height)//2)
-        if (new_height < target_height) and (new_width < target_width):
+        if (new_height < target_height) or (new_width < target_width):
+            print("Warning: Switching Methods")
             new_height = target_height
             new_width = int((art_width / art_height) * target_height)
             diff = ((target_width-new_width)//2, 0)
