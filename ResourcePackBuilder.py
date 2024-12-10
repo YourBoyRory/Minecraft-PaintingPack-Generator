@@ -7,18 +7,12 @@ from PIL import Image
 
 class ResourcePackBuilder:
     
-    packData = {}
-    
-    def __init__(self, packName, packIcon, mcMeta):
-        self.packName = packName
+    def __init__(self, mcMeta):
+        self.packData = {}
         if mcMeta != None:
             packMeta = json.dumps(mcMeta, indent=4)
             self.addFile("pack.mcmeta", str(packMeta))
-        if packIcon != None:
-            with open(packIcon, 'rb') as f:
-                self.addFile("pack.png", f.read())
         
-
     def addFile(self, filePath, file):
         self.packData[filePath] = file
 

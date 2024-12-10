@@ -1,9 +1,10 @@
 import os
 import json
 import sys
+from pathlib import Path
 from PyQt5.QtCore import Qt, QSize, QStringListModel
 from PyQt5.QtGui import QPixmap, QImage, QIcon, QColor, QFont
-from PyQt5.QtWidgets import QMessageBox, QDialog, QColorDialog, QFormLayout, QLineEdit, QMenu, QAction, QListWidgetItem, QListWidget, QTabWidget, QApplication, QWidget, QVBoxLayout, QComboBox, QLabel, QFrame, QHBoxLayout, QFileDialog, QSizePolicy, QSpinBox, QPushButton
+from PyQt5.QtWidgets import QMessageBox, QMenuBar, QDialog, QColorDialog, QFormLayout, QLineEdit, QMenu, QAction, QListWidgetItem, QListWidget, QTabWidget, QApplication, QWidget, QVBoxLayout, QComboBox, QLabel, QFrame, QHBoxLayout, QFileDialog, QSizePolicy, QSpinBox, QPushButton
 from io import BytesIO
 from PIL import Image 
 from PaintingGenerator import PaintingGenerator
@@ -12,8 +13,8 @@ from ResourcePackBuilder import ResourcePackBuilder
 class InputDialog(QDialog):
     def __init__(self, parent):
         super().__init__(parent)
-        
-        self.setWindowTitle("New Pack")
+        self.icon = None
+        self.setWindowTitle("Create New Pack")
         
         # Create form layout
         layout = QFormLayout()
@@ -24,11 +25,14 @@ class InputDialog(QDialog):
         self.number_input = QSpinBox()
         self.number_input.setValue(42)
         self.number_input.setRange(0, 100)  # Set the range for the spinner
+        self.iconButton = QPushButton("Set Pack Icon")
+        self.iconButton.clicked.connect(self.setIcon)
         
         # Add fields to the layout
         layout.addRow("Title:", self.title_input)
         layout.addRow("Description:", self.description_input)
         layout.addRow("Pack Format:", self.number_input)
+        layout.addRow(self.iconButton)
         
         # Create Ok and Cancel buttons
         self.ok_button = QPushButton("Ok")
@@ -41,13 +45,29 @@ class InputDialog(QDialog):
         self.setLayout(layout)
         
         # Connect buttons to functions
-        self.ok_button.clicked.connect(self.accept)
+        self.ok_button.clicked.connect(self.on_ok_button_clicked)
         self.cancel_button.clicked.connect(self.reject)
 
     def get_data(self):
         # Return the data entered by the user
-        return self.title_input.text(), self.description_input.text(), self.number_input.value()
+        return self.title_input.text(), self.description_input.text(), self.number_input.value(), self.icon
 
+    def on_ok_button_clicked(self):
+        # Validate required fields before accepting the form
+        if not self.title_input.text().strip() or not self.description_input.text().strip():
+            QMessageBox.information(self, "Pack not Created", "You need a Title and Description")
+        else:
+            self.accept()  # Proceed with accepting the form if validation passes
+
+    def setIcon(self):
+        lastText = self.iconButton.text()
+        self.iconButton.setText("Set Pack Icon")
+        file_name, _ = QFileDialog.getOpenFileName(self, 'Select Pack Icon', '', 'Images (*.png *.xpm *.jpg *.jpeg *.bmp *.gif)')
+        if file_name:
+            self.icon = file_name
+            self.iconButton.setText("Icon Set!")
+        else:
+            self.iconButton.setText(lastText)
 
 class PaintingStudio(QWidget):
      
@@ -59,6 +79,7 @@ class PaintingStudio(QWidget):
         self.file_path_stack = []
         self.lock = True
         self.updating = False
+        self.packCreated = False 
         self.backgroundColor = "#000000"
         
         # generated stuff
@@ -66,6 +87,14 @@ class PaintingStudio(QWidget):
         self.setWindowTitle("Minecraft Painting Studio")
         self.setGeometry(100, 100, 800, 800)
 
+        menubar = QMenuBar()
+        file_menu = menubar.addMenu('File')
+        
+        new_pack_action = QAction('New Pack', self)
+        new_pack_action.triggered.connect(self.newPack)
+        
+        file_menu.addAction(new_pack_action)
+        
         # Set up the layout
         layout = QVBoxLayout(self)
         
@@ -87,10 +116,18 @@ class PaintingStudio(QWidget):
         self.listwidget.setContextMenuPolicy(3)
         self.listwidget.customContextMenuRequested.connect(self.show_context_menu)
         font = QFont()
-        font.setPointSize(24)
+        font.setPointSize(18)
         self.listwidget.setFont(font)
         tab2_layout.addWidget(self.listwidget)
+        packinfo_layout = QHBoxLayout()
+        self.packIcon_label = QLabel()
+        self.packIcon_label.setFixedSize(110,100)
+        self.packTitle_label = QLabel()
+        packinfo_layout.addWidget(self.packIcon_label)
+        packinfo_layout.addWidget(self.packTitle_label)
+        tab2_layout.addLayout(packinfo_layout)
         tab2.setLayout(tab2_layout)
+        
         
         button_layout = QHBoxLayout()
         self.add_button = QPushButton("Add Painting", self)
@@ -101,7 +138,7 @@ class PaintingStudio(QWidget):
         button_layout.addWidget(self.export_button)
         
         # Create the combo boxes
-        lable_width = 100
+        lable_width = 120
         detail_layout = QHBoxLayout()
         self.detail_spin_box = QSpinBox(self)
         self.detail_spin_box.setRange(1, 16)  # Set the valid range (1 to 100)
@@ -117,7 +154,8 @@ class PaintingStudio(QWidget):
         scale_label = QLabel('Scale Method: ')
         scale_label.setMaximumWidth(lable_width)
         scale_layout.addWidget(scale_label)
-        self.scale_combo_box.addItems(["Stretch", "Fit", "Crop"])
+        self.scaleOptions = ["Stretch", "Fit", "Crop"]
+        self.scale_combo_box.addItems(self.scaleOptions)
         self.color_button = QPushButton('Choose Backgroud Color', self)
         self.color_button.clicked.connect(self.showColorDialog)
         scale_layout.addWidget(self.scale_combo_box)
@@ -173,12 +211,12 @@ class PaintingStudio(QWidget):
         self.tab_widget.addTab(tab1, "Painting Studio")
         self.tab_widget.addTab(tab2, "Added Paintings")
         
+        layout.addWidget(menubar)
         layout.addWidget(self.tab_widget)
         self.setLayout(layout)
 
         # Set the whole window to accept drops
         self.setAcceptDrops(True)
-        self.newPack()
     
     def newPack(self):
         # Create and show the input dialog
@@ -186,21 +224,37 @@ class PaintingStudio(QWidget):
         
         # Check if the dialog was accepted
         if dialog.exec_() == QDialog.Accepted:
-            title, description, number = dialog.get_data()
-            print(f"Title: {title}")
-            print(f"Description: {description}")
-            print(f"Number: {number}")
-        
-        self.packName = "NSFW_furry_paintings"
-        self.packIcon = "../pack.png"
-        self.packMeta = { 
-            "pack": {
-                "description": "NSFW Furry Paintings!",
-                "pack_format": 42
+            title, description, number, icon = dialog.get_data()
+            self.painting_maker = PaintingGenerator()   
+            self.packCreated = True
+            self.packName = title
+            self.packMeta = { 
+                "pack": {
+                    "description": f"{description}",
+                    "pack_format": number
+                }
             }
-        }
-        self.pack_builder = ResourcePackBuilder(self.packName , self.packIcon , self.packMeta)
-        self.painting_maker = PaintingGenerator()
+            self.pack_builder = ResourcePackBuilder(self.packMeta)
+            if icon != None:
+                pil_image = Image.open(icon).convert('RGB')
+                pil_image_resized = pil_image.resize((64,64))
+                image_bytes = BytesIO()
+                pil_image_resized.save(image_bytes, format='PNG')
+                image_bytes.seek(0)
+                self.pack_builder.addFile("pack.png", image_bytes.read())
+                data = pil_image_resized.tobytes("raw", "RGB")
+                qim = QImage(data, pil_image_resized.width, pil_image_resized.height, QImage.Format_RGB888)
+                pixmap = QPixmap(QPixmap.fromImage(qim))
+            else:
+                pixmap = QPixmap("./assets/pack.png")
+            self.packIcon_label.setPixmap(pixmap.scaled(QSize(100, 100), aspectRatioMode=1))
+            self.packTitle_label.setText(f"{title}\nFormat: {number}\n\n{description}")
+            
+            
+            #print(self.pack_builder.packData)
+            self.listwidget.clear()
+            self.used_paintings = []
+            self.updateComboBox()
     
     def setButtonEnabled(self, value):
         if self.listwidget.count() == 0:
@@ -227,9 +281,10 @@ class PaintingStudio(QWidget):
         context_menu.exec_(global_pos)
 
     def removeImage(self, item):
-        self.pack_builder.delFile(f"assets/minecraft/textures/painting/{item.text()}.png")
+        name = item.text().split()
+        self.pack_builder.delFile(f"assets/minecraft/textures/painting/{name[0].lower()}.png")
         self.listwidget.takeItem(self.listwidget.row(item))
-        self.updateUsedPaintings()
+        self.used_paintings.remove(name[0].lower())
         #self.updateComboBox()
         if self.listwidget.count() == 0:
             self.export_button.setEnabled(False)
@@ -238,33 +293,34 @@ class PaintingStudio(QWidget):
     
     def writeImage(self):
         self.lock = True
-        paintingName = self.painting_combo_box.currentText() 
+        
+        paintingName = self.painting_combo_box.currentText()
+        detail = self.detail_spin_box.value()
+        scale_method = self.scale_combo_box.currentText()
+        size = self.size_combo_box.currentText()
+        painting = self.painting_combo_box.currentIndex()
+        frame = self.frame_combo_box.currentIndex()
+        frameName = self.frame_combo_box.currentText()
+        
         image_bytes = BytesIO()
         self.painting.save(image_bytes, format='PNG')
         image_bytes.seek(0)
         self.pack_builder.addFile(f'assets/minecraft/textures/painting/{paintingName}.png', image_bytes.read())
-        item1 = QListWidgetItem(paintingName)
+        item1 = QListWidgetItem(f"{paintingName.title()} ({size})\nFrame: {frameName.title()}\n\nDetail: {detail}x\nScale Method: {scale_method}\nBackground Color: {self.backgroundColor}")
         item1.setIcon(QIcon(self.image_label.pixmap()))  # Set QPixmap as an icon
         self.listwidget.addItem(item1)
-        self.listwidget.setIconSize(QSize(256, 256))
-        self.updateUsedPaintings()
+        self.listwidget.setIconSize(QSize(200, 200))
+        self.used_paintings += [paintingName]
         self.updateComboBox()
         self.setButtonEnabled(False)
         self.image_label.clear()
         self.image_label.setText("Drop Next image here")
         self.path_label.setText("")
         self.handle_dropped_image()
-     
-    def updateUsedPaintings(self):
-        items = []
-        for i in range(self.listwidget.count()):
-            item = self.listwidget.item(i)
-            items.append(item.text())
-        self.used_paintings = items
         
     def savePack(self):
         options = QFileDialog.Options()
-        file, _ = QFileDialog.getSaveFileName(self, "Save File", self.packName, "MC Resource Pack (*.zip);;All Files (*)", options=options)
+        file, _ = QFileDialog.getSaveFileName(self, "Save Resource Pack", f"{self.packName}.zip", "MC Resource Pack (*.zip);;All Files (*)", options=options)
         if file:
             self.pack_builder.writePack(file)
             QMessageBox.information(self, "Pack Saved", f"Resource Pack saved to\n{file}")
@@ -277,9 +333,12 @@ class PaintingStudio(QWidget):
 
     def dropEvent(self, event):
         # Get the dropped file path
-        for file in event.mimeData().urls():
-            self.file_path_stack.append(file)
-        self.handle_dropped_image()
+        if self.packCreated == True:
+            for file in event.mimeData().urls():
+                self.file_path_stack.append(file)
+            self.handle_dropped_image()
+        else:
+            QMessageBox.information(self, "Pack not Created", f"Please create a pack before importing images.")
 
     def showColorDialog(self):
         # Open the QColorDialog
@@ -296,7 +355,11 @@ class PaintingStudio(QWidget):
                 file_path = self.file_path_stack.pop()
                 self.lock = False
                 self.file_path = file_path.toLocalFile()
-                self.path_label.setText(f"{self.file_path }")
+                
+                file_name = Path(self.file_path).name.split(".")[0].lower()
+                self.autoSetComboBoxes(file_name)
+                
+                self.path_label.setText(f"{self.file_path}")
                 self.updateImage()
                 self.setButtonEnabled(True)
             except Exception as e:
@@ -306,6 +369,31 @@ class PaintingStudio(QWidget):
         else:
             print("Tree Done.")
 
+    def autoSetComboBoxes(self, filename):
+        try:
+            options = filename.split("-")
+            print(options)
+            paintingName = options[0]
+            for size, painting_list in self.paintings.items():
+                for painting in painting_list:
+                    if painting == paintingName:
+                        self.size_combo_box.setCurrentText(size)
+                        break
+            self.painting_combo_box.setCurrentText(paintingName)
+            
+            if len(options) > 1:
+                for option in options:
+                    if option.isdigit():
+                        if int(option) in range(1,17):
+                            self.detail_spin_box.setValue(int(option))
+                    elif option.title() in self.scaleOptions:
+                        self.scale_combo_box.setCurrentText(option.title())
+                self.frame_combo_box.setCurrentText(options[1])
+                
+        except:
+            print("WARN: Failed to parse auto values")
+            pass
+            
     def pushImageUpdate(self):
         if self.lock == False:
             # Open the image using Pillow
@@ -360,4 +448,5 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = PaintingStudio()
     window.show()
+    window.newPack()
     sys.exit(app.exec_())
