@@ -3,11 +3,50 @@ import json
 import sys
 from PyQt5.QtCore import Qt, QSize, QStringListModel
 from PyQt5.QtGui import QPixmap, QImage, QIcon, QColor, QFont
-from PyQt5.QtWidgets import QMessageBox, QColorDialog, QMenu, QAction, QListWidgetItem, QListWidget, QTabWidget, QApplication, QWidget, QVBoxLayout, QComboBox, QLabel, QFrame, QHBoxLayout, QFileDialog, QSizePolicy, QSpinBox, QPushButton
+from PyQt5.QtWidgets import QMessageBox, QDialog, QColorDialog, QFormLayout, QLineEdit, QMenu, QAction, QListWidgetItem, QListWidget, QTabWidget, QApplication, QWidget, QVBoxLayout, QComboBox, QLabel, QFrame, QHBoxLayout, QFileDialog, QSizePolicy, QSpinBox, QPushButton
 from io import BytesIO
 from PIL import Image 
 from PaintingGenerator import PaintingGenerator
 from ResourcePackBuilder import ResourcePackBuilder
+
+class InputDialog(QDialog):
+    def __init__(self, parent):
+        super().__init__(parent)
+        
+        self.setWindowTitle("New Pack")
+        
+        # Create form layout
+        layout = QFormLayout()
+        
+        # Create input fields
+        self.title_input = QLineEdit("PaintingPack")
+        self.description_input = QLineEdit("My Painting Pack")
+        self.number_input = QSpinBox()
+        self.number_input.setValue(42)
+        self.number_input.setRange(0, 100)  # Set the range for the spinner
+        
+        # Add fields to the layout
+        layout.addRow("Title:", self.title_input)
+        layout.addRow("Description:", self.description_input)
+        layout.addRow("Pack Format:", self.number_input)
+        
+        # Create Ok and Cancel buttons
+        self.ok_button = QPushButton("Ok")
+        self.cancel_button = QPushButton("Cancel")
+        
+        # Add buttons to the layout
+        layout.addRow(self.ok_button, self.cancel_button)
+        
+        # Set dialog layout
+        self.setLayout(layout)
+        
+        # Connect buttons to functions
+        self.ok_button.clicked.connect(self.accept)
+        self.cancel_button.clicked.connect(self.reject)
+
+    def get_data(self):
+        # Return the data entered by the user
+        return self.title_input.text(), self.description_input.text(), self.number_input.value()
 
 
 class PaintingStudio(QWidget):
@@ -16,7 +55,6 @@ class PaintingStudio(QWidget):
         super().__init__()
         with open('paintings.json', 'r') as file:
             self.paintings = json.load(file)
-        self.newPack()
         self.used_paintings = []
         self.file_path_stack = []
         self.lock = True
@@ -140,8 +178,19 @@ class PaintingStudio(QWidget):
 
         # Set the whole window to accept drops
         self.setAcceptDrops(True)
+        self.newPack()
     
     def newPack(self):
+        # Create and show the input dialog
+        dialog = InputDialog(self)
+        
+        # Check if the dialog was accepted
+        if dialog.exec_() == QDialog.Accepted:
+            title, description, number = dialog.get_data()
+            print(f"Title: {title}")
+            print(f"Description: {description}")
+            print(f"Number: {number}")
+        
         self.packName = "NSFW_furry_paintings"
         self.packIcon = "../pack.png"
         self.packMeta = { 
