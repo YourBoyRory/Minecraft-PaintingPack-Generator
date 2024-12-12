@@ -1,2 +1,8 @@
 __pycache__/
+build/
+dist/
+venv-linux/
+venv-windows/
+venv/
+*.spec
 *.zip

@@ -1,12 +1,14 @@
 import os
 import json
 import sys
+import requests
 from pathlib import Path
 from PyQt5.QtCore import Qt, QSize, QStringListModel
 from PyQt5.QtGui import QPixmap, QImage, QIcon, QColor, QFont
-from PyQt5.QtWidgets import QMessageBox, QMenuBar, QDialog, QColorDialog, QFormLayout, QLineEdit, QMenu, QAction, QListWidgetItem, QListWidget, QTabWidget, QApplication, QWidget, QVBoxLayout, QComboBox, QLabel, QFrame, QHBoxLayout, QFileDialog, QSizePolicy, QSpinBox, QPushButton
+from PyQt5.QtWidgets import QScrollArea, QSlider, QMainWindow, QMessageBox, QMenuBar, QDialog, QColorDialog, QFormLayout, QLineEdit, QMenu, QAction, QListWidgetItem, QListWidget, QTabWidget, QApplication, QWidget, QVBoxLayout, QComboBox, QLabel, QFrame, QHBoxLayout, QFileDialog, QSizePolicy, QSpinBox, QPushButton
+from PyQt5.QtWidgets import QApplication, QStyleFactory
 from io import BytesIO
-from PIL import Image 
+from PIL import Image
 from PaintingGenerator import PaintingGenerator
 from ResourcePackBuilder import ResourcePackBuilder
 
@@ -15,10 +17,10 @@ class InputDialog(QDialog):
         super().__init__(parent)
         self.icon = None
         self.setWindowTitle("Create New Pack")
-        
+        self.setObjectName("Frame")
         # Create form layout
         layout = QFormLayout()
-        
+
         # Create input fields
         self.title_input = QLineEdit("PaintingPack")
         self.description_input = QLineEdit("My Painting Pack")
@@ -27,23 +29,23 @@ class InputDialog(QDialog):
         self.number_input.setRange(0, 100)  # Set the range for the spinner
         self.iconButton = QPushButton("Set Pack Icon")
         self.iconButton.clicked.connect(self.setIcon)
-        
+
         # Add fields to the layout
         layout.addRow("Title:", self.title_input)
         layout.addRow("Description:", self.description_input)
         layout.addRow("Pack Format:", self.number_input)
         layout.addRow(self.iconButton)
-        
+
         # Create Ok and Cancel buttons
         self.ok_button = QPushButton("Ok")
         self.cancel_button = QPushButton("Cancel")
-        
+
         # Add buttons to the layout
         layout.addRow(self.ok_button, self.cancel_button)
-        
+
         # Set dialog layout
         self.setLayout(layout)
-        
+
         # Connect buttons to functions
         self.ok_button.clicked.connect(self.on_ok_button_clicked)
         self.cancel_button.clicked.connect(self.reject)
@@ -69,66 +71,67 @@ class InputDialog(QDialog):
         else:
             self.iconButton.setText(lastText)
 
-class PaintingStudio(QWidget):
-     
+class PaintingStudio(QMainWindow):
+
     def __init__(self):
         super().__init__()
-        with open('paintings.json', 'r') as file:
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+        layout = QHBoxLayout(self)
+        self.central_widget.setLayout(layout)
+        init_silder_value = 500
+        self.view_size = int(100 + (init_silder_value / 500) * 300)
+
+        with open(self.resource_path('paintings.json'), 'r') as file:
             self.paintings = json.load(file)
         self.used_paintings = []
         self.file_path_stack = []
         self.lock = True
         self.updating = False
-        self.packCreated = False 
+        self.packCreated = False
         self.backgroundColor = "#000000"
-        
-        # generated stuff
-        self.tab_widget = QTabWidget(self)
-        self.setWindowTitle("Minecraft Painting Studio")
-        self.setGeometry(100, 100, 800, 800)
 
-        menubar = QMenuBar()
+        # generated stuff
+        self.setWindowTitle("Minecraft Painting Studio")
+        self.setGeometry(100, 100, 1000, 600)
+
+        menubar = self.menuBar()
         file_menu = menubar.addMenu('File')
-        
+        help_menu = menubar.addMenu('Help')
+
         new_pack_action = QAction('New Pack', self)
         new_pack_action.triggered.connect(self.newPack)
-        
+
+        help_action = QAction('Help', self)
+        help_action.triggered.connect(self.prog_help)
+
         file_menu.addAction(new_pack_action)
-        
-        # Set up the layout
-        layout = QVBoxLayout(self)
-        
-        tab1 = QWidget()
-        tab1_layout = QVBoxLayout()
-        tab1.setLayout(tab1_layout)
-        
-        tab2 = QWidget()
-        tab2_layout = QVBoxLayout()
-        self.listwidget = QListWidget(self)
-        #self.listwidget.clicked.connect(self.list_clicked)
-        self.listwidget.setSelectionMode(3)
-        #self.listwidget.setMouseTracking(True)
-        self.listwidget.setIconSize(QSize(50, 50))
-        #self.listwidget.setMaximumWidth(500)
-        #self.listwidget.setMinimumWidth(300)
-        #self.listwidget.setMinimumHeight(550)
-        #self.listwidget.setStyleSheet(style)
-        self.listwidget.setContextMenuPolicy(3)
-        self.listwidget.customContextMenuRequested.connect(self.show_context_menu)
-        font = QFont()
-        font.setPointSize(18)
-        self.listwidget.setFont(font)
-        tab2_layout.addWidget(self.listwidget)
+        help_menu.addAction(help_action)
+
+        """ Left Bar """
+        PackConrols = QWidget()
+        PackConrols_layout = QVBoxLayout()
+
+        # Pack Info
         packinfo_layout = QHBoxLayout()
         self.packIcon_label = QLabel()
         self.packIcon_label.setFixedSize(110,100)
         self.packTitle_label = QLabel()
+        self.packTitle_label.setWordWrap(True)
         packinfo_layout.addWidget(self.packIcon_label)
         packinfo_layout.addWidget(self.packTitle_label)
-        tab2_layout.addLayout(packinfo_layout)
-        tab2.setLayout(tab2_layout)
-        
-        
+        PackConrols_layout.addLayout(packinfo_layout)
+        # Painting List
+        self.listwidget = QListWidget(self)
+        self.listwidget.setSelectionMode(3)
+        #self.listwidget.setIconSize(QSize(50, 50))
+        self.listwidget.setContextMenuPolicy(3)
+        self.listwidget.customContextMenuRequested.connect(self.show_context_menu)
+        font = QFont()
+        font.setPointSize(9)
+        self.listwidget.setFont(font)
+        PackConrols_layout.addWidget(self.listwidget)
+        # Control Buttons
         button_layout = QHBoxLayout()
         self.add_button = QPushButton("Add Painting", self)
         self.add_button.clicked.connect(self.writeImage)
@@ -136,8 +139,14 @@ class PaintingStudio(QWidget):
         self.export_button.clicked.connect(self.savePack)
         button_layout.addWidget(self.add_button)
         button_layout.addWidget(self.export_button)
-        
-        # Create the combo boxes
+        PackConrols_layout.addLayout(button_layout)
+        PackConrols.setLayout(PackConrols_layout)
+
+
+        """Options Pane"""
+        PaintingOptions = QWidget()
+        PaintingOptions_layout = QVBoxLayout()
+
         lable_width = 120
         detail_layout = QHBoxLayout()
         self.detail_spin_box = QSpinBox(self)
@@ -148,7 +157,7 @@ class PaintingStudio(QWidget):
         detail_label.setMaximumWidth(lable_width)
         detail_layout.addWidget(detail_label)
         detail_layout.addWidget(self.detail_spin_box)
-       
+
         scale_layout = QHBoxLayout()
         self.scale_combo_box = QComboBox(self)
         scale_label = QLabel('Scale Method: ')
@@ -156,33 +165,32 @@ class PaintingStudio(QWidget):
         scale_layout.addWidget(scale_label)
         self.scaleOptions = ["Stretch", "Fit", "Crop"]
         self.scale_combo_box.addItems(self.scaleOptions)
+        scale_layout.addWidget(self.scale_combo_box)
+        color_button_layout = QHBoxLayout()
         self.color_button = QPushButton('Choose Backgroud Color', self)
         self.color_button.clicked.connect(self.showColorDialog)
-        scale_layout.addWidget(self.scale_combo_box)
-        scale_layout.addWidget(self.color_button)
-        
+        color_button_layout.addWidget(self.color_button)
+
         size_layout = QHBoxLayout()
         self.size_combo_box = QComboBox(self)
         size_label = QLabel('Painting Size: ')
         size_label.setMaximumWidth(lable_width)
         size_layout.addWidget(size_label)
         size_layout.addWidget(self.size_combo_box)
-        
-        
+
         painting_layout = QHBoxLayout()
         self.painting_combo_box = QComboBox(self)
         painting_label = QLabel('Painting: ')
         painting_label.setMaximumWidth(lable_width)
         painting_layout.addWidget(painting_label)
         painting_layout.addWidget(self.painting_combo_box)
+        frame_layout = QHBoxLayout()
         self.frame_combo_box = QComboBox(self)
         frame_label = QLabel('Frame: ')
         frame_label.setMaximumWidth(lable_width//2)
-        painting_layout.addWidget(frame_label)
-        painting_layout.addWidget(self.frame_combo_box)
-        
-        self.setButtonEnabled(False)
-        
+        frame_layout.addWidget(frame_label)
+        frame_layout.addWidget(self.frame_combo_box)
+
         for key in self.paintings:
             self.size_combo_box.addItem(key)
         self.updateComboBox()
@@ -191,44 +199,93 @@ class PaintingStudio(QWidget):
         self.scale_combo_box.currentIndexChanged.connect(self.updateImage)
         self.frame_combo_box.currentIndexChanged.connect(self.updateImage)
 
-        # Label to show the dragged image file name and details
-        self.image_label = QLabel("Drop image here to customize your painting", self)
-        self.path_label = QLabel("", self)
-        
-        # Ensure the label scales its size to fit the image
-        self.image_label.setAlignment(Qt.AlignCenter)
-        self.image_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # Add Layouts
+        PaintingOptions_layout.addWidget(QLabel("<br><b>Framing Options</b>"))
+        PaintingOptions_layout.addLayout(detail_layout)
+        PaintingOptions_layout.addLayout(scale_layout)
+        PaintingOptions_layout.addLayout(color_button_layout)
+        PaintingOptions_layout.addWidget(QLabel("<br><b>Painting Options</b>"))
+        PaintingOptions_layout.addLayout(size_layout)
+        PaintingOptions_layout.addLayout(painting_layout)
+        PaintingOptions_layout.addLayout(frame_layout)
+        PaintingOptions_layout.addStretch()
+        PaintingOptions.setLayout(PaintingOptions_layout)
 
-        # Add the widgets to the layout
-        tab1_layout.addLayout(detail_layout)
-        tab1_layout.addLayout(size_layout)
-        tab1_layout.addLayout(scale_layout)
-        tab1_layout.addLayout(painting_layout)
-        tab1_layout.addWidget(self.image_label)
-        tab1_layout.addWidget(self.path_label)
-        tab1_layout.addLayout(button_layout)
-        
-        self.tab_widget.addTab(tab1, "Painting Studio")
-        self.tab_widget.addTab(tab2, "Added Paintings")
-        
-        layout.addWidget(menubar)
-        layout.addWidget(self.tab_widget)
+
+        """View Port"""
+        ViewPort = QWidget()
+        ViewPort_layout = QVBoxLayout()
+        # Main View Port
+        scroll_area = QScrollArea(self)
+        self.image_label = QLabel("Drop image here to customize your painting", self)
+        scroll_area.setWidget(self.image_label)
+        scroll_area.setAlignment(Qt.AlignCenter)
+        self.image_label.setAlignment(Qt.AlignCenter)
+        self.image_label.setWordWrap(True)
+        self.image_label.setFixedSize(self.view_size, self.view_size)
+        #Add Layouts
+        ViewPort_layout.addWidget(scroll_area)
+        ViewPort.setLayout(ViewPort_layout)
+
+
+        """Tool Bar"""
+        ToolBar = QWidget()
+        ToolBar_layout = QVBoxLayout()
+        # View Port Tools
+        tools_layout = QHBoxLayout()
+        self.path_label = QLabel(" ", self)
+        self.path_label.setMinimumWidth(1)
+        #self.path_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+        self.view_slider = QSlider(Qt.Horizontal)
+        self.view_slider.setRange(0,1000)  # Set minimum value
+        self.view_slider.setValue(init_silder_value)  # Set initial value
+        self.view_slider.setTickPosition(QSlider.TicksBelow)
+        self.view_slider.setTickInterval(125)
+        self.view_slider.setFixedWidth(100)
+        self.view_slider.setMaximumWidth(150)
+        self.view_slider.valueChanged.connect(self.view_slider_changed)
+        tools_layout.addWidget(self.path_label)
+        tools_layout.addStretch()
+        tools_layout.addWidget(self.view_slider)
+        #Add Layouts
+        ToolBar_layout.addLayout(tools_layout)
+        ToolBar.setLayout(ToolBar_layout)
+
+
+        """Main Window"""
+
+        ViewPort.setMinimumWidth(600)
+        PaintingOptions.setMinimumWidth(250)
+        PaintingOptions.setMaximumWidth(350)
+        PackConrols.setMinimumWidth(250)
+        PackConrols.setMaximumWidth(350)
+
+        combine_OptionsViewport = QHBoxLayout()
+        combine_ViewportToolbar = QVBoxLayout()
+
+        combine_OptionsViewport.addWidget(PaintingOptions)
+        combine_OptionsViewport.addWidget(ViewPort)
+        combine_ViewportToolbar.addLayout(combine_OptionsViewport)
+        combine_ViewportToolbar.addWidget(ToolBar)
+        layout.addLayout(combine_ViewportToolbar)
+        layout.addWidget(PackConrols)
         self.setLayout(layout)
 
         # Set the whole window to accept drops
+        self.setButtonEnabled(False)
         self.setAcceptDrops(True)
-    
+
     def newPack(self):
         # Create and show the input dialog
         dialog = InputDialog(self)
-        
+
         # Check if the dialog was accepted
         if dialog.exec_() == QDialog.Accepted:
             title, description, number, icon = dialog.get_data()
-            self.painting_maker = PaintingGenerator()   
+            self.painting_maker = PaintingGenerator()
             self.packCreated = True
             self.packName = title
-            self.packMeta = { 
+            self.packMeta = {
                 "pack": {
                     "description": f"{description}",
                     "pack_format": number
@@ -241,34 +298,56 @@ class PaintingStudio(QWidget):
                 image_bytes = BytesIO()
                 pil_image_resized.save(image_bytes, format='PNG')
                 image_bytes.seek(0)
-                self.pack_builder.addFile("pack.png", image_bytes.read())
+                self.pack_builder.addFile(self.resource_path("assets/pack.png"), image_bytes.read())
                 data = pil_image_resized.tobytes("raw", "RGB")
                 qim = QImage(data, pil_image_resized.width, pil_image_resized.height, QImage.Format_RGB888)
                 pixmap = QPixmap(QPixmap.fromImage(qim))
             else:
-                pixmap = QPixmap("./assets/pack.png")
+                pixmap = QPixmap(self.resource_path("pack.png"))
             self.packIcon_label.setPixmap(pixmap.scaled(QSize(100, 100), aspectRatioMode=1))
             self.packTitle_label.setText(f"{title}\nFormat: {number}\n\n{description}")
-            
-            
+
+
             #print(self.pack_builder.packData)
             self.listwidget.clear()
             self.used_paintings = []
             self.updateComboBox()
-    
+
+    def view_slider_changed(self):
+        self.update_view_size()
+        self.updateImage()
+
+    def update_view_size(self, autoScale = False):
+        value = self.view_slider.value()
+        if value <= 500:
+            # Bottom half (100 to 400)
+            self.view_size = int(100 + (value / 500) * 300)
+        else:
+            # Top half (400 to 1600)
+            self.view_size = int(400 + ((value - 500) / 500) * 1200)
+        self.image_label.setFixedSize(self.view_size, self.view_size)
+
+    def resource_path(self, relative_path):
+        try:
+            base_path = sys._MEIPASS
+        except Exception:
+            base_path = os.path.abspath(".")
+        return os.path.join(base_path, relative_path)
+
     def setButtonEnabled(self, value):
         if self.listwidget.count() == 0:
             self.export_button.setEnabled(False)
         else:
             self.export_button.setEnabled(True)
         self.add_button.setEnabled(value)
+        self.view_slider.setEnabled(value)
         return
         self.detail_spin_box.setEnabled(value)
         self.size_combo_box.setEnabled(value)
         self.painting_combo_box.setEnabled(value)
         self.frame_combo_box.setEnabled(value)
         self.scale_combo_box.setEnabled(value)
-        
+
         self.color_button.setEnabled(value)
 
     def show_context_menu(self, pos):
@@ -290,10 +369,10 @@ class PaintingStudio(QWidget):
             self.export_button.setEnabled(False)
         else:
             self.export_button.setEnabled(True)
-    
+
     def writeImage(self):
         self.lock = True
-        
+
         paintingName = self.painting_combo_box.currentText()
         detail = self.detail_spin_box.value()
         scale_method = self.scale_combo_box.currentText()
@@ -301,7 +380,7 @@ class PaintingStudio(QWidget):
         painting = self.painting_combo_box.currentIndex()
         frame = self.frame_combo_box.currentIndex()
         frameName = self.frame_combo_box.currentText()
-        
+
         image_bytes = BytesIO()
         self.painting.save(image_bytes, format='PNG')
         image_bytes.seek(0)
@@ -309,15 +388,17 @@ class PaintingStudio(QWidget):
         item1 = QListWidgetItem(f"{paintingName.title()} ({size})\nFrame: {frameName.title()}\n\nDetail: {detail}x\nScale Method: {scale_method}\nBackground Color: {self.backgroundColor}")
         item1.setIcon(QIcon(self.image_label.pixmap()))  # Set QPixmap as an icon
         self.listwidget.addItem(item1)
-        self.listwidget.setIconSize(QSize(200, 200))
+        self.listwidget.setIconSize(QSize(100, 100))
         self.used_paintings += [paintingName]
         self.updateComboBox()
         self.setButtonEnabled(False)
         self.image_label.clear()
         self.image_label.setText("Drop Next image here")
         self.path_label.setText("")
+        self.view_size = 400
+        self.image_label.setFixedSize(self.view_size, self.view_size)
         self.handle_dropped_image()
-        
+
     def savePack(self):
         options = QFileDialog.Options()
         file, _ = QFileDialog.getSaveFileName(self, "Save Resource Pack", f"{self.packName}.zip", "MC Resource Pack (*.zip);;All Files (*)", options=options)
@@ -336,6 +417,7 @@ class PaintingStudio(QWidget):
         if self.packCreated == True:
             for file in event.mimeData().urls():
                 self.file_path_stack.append(file)
+            self.init_stack_count = len(self.file_path_stack)
             self.handle_dropped_image()
         else:
             QMessageBox.information(self, "Pack not Created", f"Please create a pack before importing images.")
@@ -349,17 +431,29 @@ class PaintingStudio(QWidget):
             self.backgroundColor = color.name()
         self.updateImage()
 
+    def prog_help(self):
+        pass
+
     def handle_dropped_image(self):
         if len(self.file_path_stack) > 0:
             try:
-                file_path = self.file_path_stack.pop()
+                url = self.file_path_stack.pop()
                 self.lock = False
-                self.file_path = file_path.toLocalFile()
-                
-                file_name = Path(self.file_path).name.split(".")[0].lower()
+                if url.toLocalFile() == "":
+                    file_path = url.toString()
+                    response = requests.get(file_path)
+                    img_data = BytesIO(response.content)
+                    self.art = Image.open(img_data)
+                    print(response.status_code)
+                else:
+                    file_path = url.toLocalFile()
+                    self.art = Image.open(file_path)
+                print(f"Test: {self.art}")
+
+                file_name = Path(file_path).name.split(".")[0].lower()
                 self.autoSetComboBoxes(file_name)
-                
-                self.path_label.setText(f"{self.file_path}")
+                curr = self.init_stack_count-len(self.file_path_stack)
+                self.path_label.setText(f"File: [{curr}/{self.init_stack_count}] - {file_path}")
                 self.updateImage()
                 self.setButtonEnabled(True)
             except Exception as e:
@@ -367,12 +461,12 @@ class PaintingStudio(QWidget):
                 self.handle_dropped_image()
                 self.image_label.setText(f"Failed to open image: {str(e)}")
         else:
+            self.init_stack_count = 0
             print("Tree Done.")
 
     def autoSetComboBoxes(self, filename):
         try:
             options = filename.split("-")
-            print(options)
             paintingName = options[0]
             for size, painting_list in self.paintings.items():
                 for painting in painting_list:
@@ -380,7 +474,7 @@ class PaintingStudio(QWidget):
                         self.size_combo_box.setCurrentText(size)
                         break
             self.painting_combo_box.setCurrentText(paintingName)
-            
+
             if len(options) > 1:
                 for option in options:
                     if option.isdigit():
@@ -389,29 +483,35 @@ class PaintingStudio(QWidget):
                     elif option.title() in self.scaleOptions:
                         self.scale_combo_box.setCurrentText(option.title())
                 self.frame_combo_box.setCurrentText(options[1])
-                
+
         except:
             print("WARN: Failed to parse auto values")
             pass
-            
+
     def pushImageUpdate(self):
         if self.lock == False:
             # Open the image using Pillow
+            self.update_view_size()
             detail = self.detail_spin_box.value()
             scale_method = self.scale_combo_box.currentText()
             size = self.size_combo_box.currentText()
             painting = self.painting_combo_box.currentIndex()
             frame = self.frame_combo_box.currentIndex()
-            art = Image.open(self.file_path)
-            self.painting = self.painting_maker.makePaiting(detail, scale_method, self.backgroundColor, self.paintings[size][frame], art)
-                    
+            if self.frame_combo_box.currentText() == "None":
+                showFrame = False
+                frameName = self.paintings[size][0]
+            else:
+                showFrame = True
+                frameName = self.paintings[size][frame]
+            self.painting = self.painting_maker.makePaiting(detail, scale_method, self.backgroundColor, frameName, showFrame, self.art)
+
             # Convert the image to QPixmap for display
             pil_image = self.painting.convert("RGB")
             data = pil_image.tobytes("raw", "RGB")
             qim = QImage(data, pil_image.width, pil_image.height, QImage.Format_RGB888)
             pixmap = QPixmap(QPixmap.fromImage(qim))
             # Display the image at full size in the label
-            self.image_label.setPixmap(pixmap.scaled(QSize(600, 400), aspectRatioMode=1))
+            self.image_label.setPixmap(pixmap.scaled(QSize(self.view_size, self.view_size), aspectRatioMode=1))
         else:
             print("WARN: A push to the image view was preformed while it was locked!")
 
@@ -423,10 +523,18 @@ class PaintingStudio(QWidget):
             print("WARN: A push to the image view was preformed while it was locked!")
             return
         self.pushImageUpdate()
-        
+
     def updateFrameComboBox(self):
-        self.frame_combo_box.setCurrentText(self.painting_combo_box.currentText())
-        
+        if self.frame_combo_box.currentText() != "None":
+            self.frame_combo_box.setCurrentText(self.painting_combo_box.currentText())
+
+    def resource_path(self, file):
+        if getattr(sys, 'frozen', False):
+            base_path = sys._MEIPASS
+        else:
+            base_path = os.path.dirname(__file__)
+        return os.path.join(base_path, 'assets', file)
+
     def updateComboBox(self):
         self.updating = True
         size = self.size_combo_box.currentText()
@@ -436,6 +544,7 @@ class PaintingStudio(QWidget):
             self.frame_combo_box.addItem(types)
             if types not in self.used_paintings:
                 self.painting_combo_box.addItem(types)
+        self.frame_combo_box.addItem("None")
         if self.painting_combo_box.currentText() == "":
             self.size_combo_box.removeItem(self.size_combo_box.currentIndex())
         try:
@@ -443,10 +552,43 @@ class PaintingStudio(QWidget):
         except Exception as e:
             print(f"Failed to open image: {str(e)}")
         self.updating = False
-     
+
+def set_theme(app):
+    desktop = ""
+    try:
+        gtk_based = [
+            "gnome", "lxde", "mate",
+            "cinnamon", "ubuntu"
+        ]
+        desktop = os.environ.get('DESKTOP_SESSION')
+        if any(sub in desktop for sub in gtk_based):
+            try:
+                import subprocess
+                result = subprocess.run(
+                    ['gsettings', 'get', 'org.gnome.desktop.interface', 'color-scheme'],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+                theme = result.stdout.strip().lower()
+                print(theme)
+                if 'dark' in theme:
+                    app.setStyle("Adwaita-Dark")
+                else:
+                    app.setStyle("Adwaita")
+            except:
+                app.setStyle("Adwaita")
+    except:
+        pass
+    current_style = app.style().objectName()
+    print(f"Loaded Theme: {current_style} on {desktop}")
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    set_theme(app)
+    print(QStyleFactory.keys())
     window = PaintingStudio()
+    #window.setObjectName("Frame")
     window.show()
     window.newPack()
     sys.exit(app.exec_())
