@@ -3,7 +3,7 @@ import json
 import sys
 import requests
 from pathlib import Path
-from PyQt5.QtCore import Qt, QSize, QStringListModel
+from PyQt5.QtCore import Qt, QUrl, QSize, QStringListModel
 from PyQt5.QtGui import QPixmap, QImage, QIcon, QColor, QFont
 from PyQt5.QtWidgets import QScrollArea, QSlider, QMainWindow, QMessageBox, QMenuBar, QDialog, QColorDialog, QFormLayout, QLineEdit, QMenu, QAction, QListWidgetItem, QListWidget, QTabWidget, QApplication, QWidget, QVBoxLayout, QComboBox, QLabel, QFrame, QHBoxLayout, QFileDialog, QSizePolicy, QSpinBox, QPushButton
 from PyQt5.QtWidgets import QApplication, QStyleFactory
@@ -84,7 +84,7 @@ class PaintingStudio(QMainWindow):
 
         with open(self.resource_path('paintings.json'), 'r') as file:
             self.paintings = json.load(file)
-        self.used_paintings = []
+        self.used_paintings = {}
         self.file_path_stack = []
         self.lock = True
         self.updating = False
@@ -310,7 +310,7 @@ class PaintingStudio(QMainWindow):
 
             #print(self.pack_builder.packData)
             self.listwidget.clear()
-            self.used_paintings = []
+            self.used_paintings = {}
             self.updateComboBox()
 
     def view_slider_changed(self):
@@ -356,19 +356,64 @@ class PaintingStudio(QMainWindow):
         context_menu = QMenu(self)
         delete_action = QAction("Delete Item", self)
         delete_action.triggered.connect(lambda: self.removeImage(item))
+        edit_action = QAction("Edit Item", self)
+        edit_action.triggered.connect(lambda: self.editImage(item))
         context_menu.addAction(delete_action)
+        context_menu.addAction(edit_action)
         context_menu.exec_(global_pos)
 
     def removeImage(self, item):
+        try:
+            name = item.text().split()
+            self.pack_builder.delFile(f"assets/minecraft/textures/painting/{name[0].lower()}.png")
+            self.listwidget.takeItem(self.listwidget.row(item))
+            self.used_paintings.pop(name[0].lower(), None)
+            self.painting_combo_box.addItem(name[0].lower())
+            if self.listwidget.count() == 0:
+                self.export_button.setEnabled(False)
+            else:
+                self.export_button.setEnabled(True)
+        except Exception as e:
+            print(f"Failed to remove image: {str(e)}")
+
+    def editImage(self, item):
+        #try:
         name = item.text().split()
         self.pack_builder.delFile(f"assets/minecraft/textures/painting/{name[0].lower()}.png")
         self.listwidget.takeItem(self.listwidget.row(item))
-        self.used_paintings.remove(name[0].lower())
-        #self.updateComboBox()
+        self.painting_combo_box.addItem(name[0].lower())
         if self.listwidget.count() == 0:
             self.export_button.setEnabled(False)
         else:
             self.export_button.setEnabled(True)
+        self.loadImageFromSaved(name[0].lower())
+        #except Exception as e:
+        #    print(f"Failed to edit image: {str(e)}")
+
+    def loadImageFromSaved(self, paintingName):
+        detail = self.used_paintings[paintingName]["detail"]
+        frameName = self.used_paintings[paintingName]["frame"]
+        size = self.used_paintings[paintingName]["size"]
+        scale_method = self.used_paintings[paintingName]["scale_method"]
+        background_color = self.used_paintings[paintingName]["background_color"]
+        file_path = self.used_paintings[paintingName]["file_path"]
+
+        if paintingName in self.used_paintings:
+            self.used_paintings.pop(paintingName, None)
+            self.updateComboBox()
+
+        self.file_path_stack.append(QUrl(f'file://{file_path}'))
+        self.handle_dropped_image()
+
+        self.backgroundColor = background_color
+        self.scale_combo_box.setCurrentText(scale_method)
+
+        self.size_combo_box.setCurrentText(size)
+        self.painting_combo_box.setCurrentText(paintingName)
+        self.frame_combo_box.setCurrentText(frameName)
+        self.detail_spin_box.setValue(detail)
+
+
 
     def writeImage(self):
         self.lock = True
@@ -377,7 +422,7 @@ class PaintingStudio(QMainWindow):
         detail = self.detail_spin_box.value()
         scale_method = self.scale_combo_box.currentText()
         size = self.size_combo_box.currentText()
-        painting = self.painting_combo_box.currentIndex()
+        #painting = self.painting_combo_box.currentIndex()
         frame = self.frame_combo_box.currentIndex()
         frameName = self.frame_combo_box.currentText()
 
@@ -389,7 +434,15 @@ class PaintingStudio(QMainWindow):
         item1.setIcon(QIcon(self.image_label.pixmap()))  # Set QPixmap as an icon
         self.listwidget.addItem(item1)
         self.listwidget.setIconSize(QSize(100, 100))
-        self.used_paintings += [paintingName]
+        self.used_paintings[paintingName] = {
+            "detail": detail,
+            "frame": frameName,
+            "size": size,
+            "scale_method": scale_method,
+            "background_color": self.backgroundColor,
+            "file_path": self.art_path,
+        }
+        print(self.used_paintings)
         self.updateComboBox()
         self.setButtonEnabled(False)
         self.image_label.clear()
@@ -417,6 +470,7 @@ class PaintingStudio(QMainWindow):
         if self.packCreated == True:
             for file in event.mimeData().urls():
                 self.file_path_stack.append(file)
+                print(file)
             self.init_stack_count = len(self.file_path_stack)
             self.handle_dropped_image()
         else:
@@ -440,20 +494,20 @@ class PaintingStudio(QMainWindow):
                 url = self.file_path_stack.pop()
                 self.lock = False
                 if url.toLocalFile() == "":
-                    file_path = url.toString()
-                    response = requests.get(file_path)
+                    self.art_path = url.toString()
+                    response = requests.get(self.art_path)
                     img_data = BytesIO(response.content)
                     self.art = Image.open(img_data)
                     print(response.status_code)
                 else:
-                    file_path = url.toLocalFile()
-                    self.art = Image.open(file_path)
+                    self.art_path = url.toLocalFile()
+                    self.art = Image.open(self.art_path)
                 print(f"Test: {self.art}")
 
-                file_name = Path(file_path).name.split(".")[0].lower()
+                file_name = Path(self.art_path).name.split(".")[0].lower()
                 self.autoSetComboBoxes(file_name)
                 curr = self.init_stack_count-len(self.file_path_stack)
-                self.path_label.setText(f"File: [{curr}/{self.init_stack_count}] - {file_path}")
+                self.path_label.setText(f"File: [{curr}/{self.init_stack_count}] - {self.art_path}")
                 self.updateImage()
                 self.setButtonEnabled(True)
             except Exception as e:
