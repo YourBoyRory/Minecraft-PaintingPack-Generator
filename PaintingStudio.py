@@ -27,7 +27,6 @@ class PaintingStudio(QMainWindow):
 
         with open(self.resource_path('paintings.json'), 'r') as file:
             self.paintings = json.load(file)
-        self.used_paintings = {}
         self.file_path_stack = []
         self.lock = True
         self.updating = False
@@ -213,7 +212,6 @@ class PaintingStudio(QMainWindow):
             }
             self.packConrols.setPackInfo(title, packMeta, icon)
 
-            self.used_paintings = {}
             self.size_combo_box.clear()
             for key in self.paintings:
                 self.size_combo_box.addItem(key)
@@ -234,99 +232,41 @@ class PaintingStudio(QMainWindow):
             self.view_size = int(400 + ((value - 500) / 500) * 1200)
         self.image_label.setFixedSize(self.view_size, self.view_size)
 
-    def resource_path(self, relative_path):
-        try:
-            base_path = sys._MEIPASS
-        except Exception:
-            base_path = os.path.abspath(".")
-        return os.path.join(base_path, relative_path)
-
     def setButtonEnabled(self, value):
-        if self.packConrols.listwidget.count() == 0:
-            self.packConrols.export_button.setEnabled(False)
-            self.save_draft_action.setEnabled(False)
-        else:
-            self.packConrols.export_button.setEnabled(True)
-            self.save_draft_action.setEnabled(True)
+        listFull = self.packConrols.updateButtonEnabled()
+        self.save_draft_action.setEnabled(listFull)
         self.packConrols.add_button.setEnabled(value)
         self.view_slider.setEnabled(value)
         return
-        self.detail_spin_box.setEnabled(value)
-        self.size_combo_box.setEnabled(value)
-        self.painting_combo_box.setEnabled(value)
-        self.frame_combo_box.setEnabled(value)
-        self.scale_combo_box.setEnabled(value)
-
-        self.color_button.setEnabled(value)
-
-    def editImage(self, item):
-        try:
-            name = item.text().split()[0].lower()
-            size = item.text().split()[1].replace("(", "").replace(")", "")
-            self.pack_builder.delFile(f"assets/minecraft/textures/painting/{name}.png")
-            self.packConrols.listwidget.takeItem(self.packConrols.listwidget.row(item))
-            if self.size_combo_box.findText(size) == -1:
-                self.size_combo_box.addItem(size)
-            if self.packConrols.listwidget.count() == 0:
-                self.packConrols.export_button.setEnabled(False)
-                self.save_draft_action.setEnabled(False)
-            else:
-                self.packConrols.export_button.setEnabled(True)
-            self.loadImageFromSaved(name)
-        except Exception as e:
-            print(f"Failed to edit image: {str(e)}")
 
     def loadFromFile(self):
-        dialog = LoadingDialog(self)
-        file_name, _ = QFileDialog.getOpenFileName(self, 'Load Draft', '', 'PaintingStudio Draft (*.json)')
-        if file_name:
-            self.packConrols.listwidget.clear()
-            self.used_paintings = {}
-            self.updateComboBox()
-            with open(file_name) as f:
-                loaded_paintings = json.load(f)
-            i=1
-            dialog.show_loading(len(loaded_paintings))
-            for paintingName in loaded_paintings:
-                self.used_paintings[paintingName] = loaded_paintings[paintingName]
-                self.loadImageFromSaved(paintingName)
-                self.writeImage()
-                dialog.update_progress_signal.emit(i)
-                QApplication.processEvents()
-                i+=1
-            dialog.close_dialog()
+        self.packConrols.loadDraft()
 
     def saveToFile(self):
-        options = QFileDialog.Options()
-        file, _ = QFileDialog.getSaveFileName(self, "Save Draft", f"{self.packName}.json", "PaintingStudio Draft (*.json)", options=options)
-        if file:
-            with open(file, "w") as fp:
-                json.dump(self.used_paintings, fp)
-            QMessageBox.information(self, "Draft Saved", f"Draft saved to\n{file}")
+        self.packConrols.saveDraft()
 
-    def loadImageFromSaved(self, paintingName):
-        detail = self.used_paintings[paintingName]["detail"]
-        frameName = self.used_paintings[paintingName]["frame"]
-        size = self.used_paintings[paintingName]["size"]
-        scale_method = self.used_paintings[paintingName]["scale_method"]
-        background_color = self.used_paintings[paintingName]["background_color"]
-        file_path = self.used_paintings[paintingName]["file_path"]
-
-        if paintingName in self.used_paintings:
-            self.used_paintings.pop(paintingName, None)
-            self.updateComboBox()
-
+    def setCurrentImage(self, file_path):
+        # Put loaded image on the file stack
         self.file_path_stack.append(QUrl(f'file://{file_path}'))
         self.init_stack_count = len(self.file_path_stack)
+        # Process image
         self.handle_dropped_image()
 
+    def setCurrentData(self, paintingName, paintingMetaData):
+        # Load Meta Data
+        detail = paintingMetaData["detail"]
+        frameName = paintingMetaData["frameName"]
+        size = paintingMetaData["size"]
+        scale_method = paintingMetaData["scale_method"]
+        background_color = paintingMetaData["background_color"]
+        file_path = paintingMetaData["file_path"]
+        # Set Options
+        self.detail_spin_box.setValue(detail)
         self.backgroundColor = background_color
         self.scale_combo_box.setCurrentText(scale_method)
-
         self.size_combo_box.setCurrentText(size)
         self.painting_combo_box.setCurrentText(paintingName)
         self.frame_combo_box.setCurrentText(frameName)
-        self.detail_spin_box.setValue(detail)
 
     def getCurrentImageData(self):
         paintingName = self.painting_combo_box.currentText()
@@ -336,16 +276,10 @@ class PaintingStudio(QMainWindow):
         imageData[paintingName]['frameName'] = self.frame_combo_box.currentText()
         imageData[paintingName]['size'] = self.size_combo_box.currentText()
         imageData[paintingName]['scale_method'] = self.scale_combo_box.currentText()
-        imageData[paintingName]['backgroun_color'] = self.backgroundColor
+        imageData[paintingName]['background_color'] = self.backgroundColor
         imageData[paintingName]['frame_index'] = self.frame_combo_box.currentIndex()
-        return imageData, paintingName, self.art
-
-    def savePack(self):
-        options = QFileDialog.Options()
-        file, _ = QFileDialog.getSaveFileName(self, "Save Resource Pack", f"{self.packName}.zip", "MC Resource Pack (*.zip);;All Files (*)", options=options)
-        if file:
-            self.pack_builder.writePack(file)
-            QMessageBox.information(self, "Pack Saved", f"Resource Pack saved to\n{file}")
+        imageData[paintingName]['file_path'] = self.art_path
+        return imageData, paintingName, self.painting 
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
@@ -486,7 +420,7 @@ class PaintingStudio(QMainWindow):
             return
         for types in self.paintings[size]:
             self.frame_combo_box.addItem(types)
-            if types not in self.used_paintings:
+            if types not in self.packConrols.used_paintings:
                 self.painting_combo_box.addItem(types)
         self.frame_combo_box.addItem("None")
         if self.painting_combo_box.currentText() == "":

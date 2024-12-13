@@ -2,8 +2,10 @@ from PyQt5.QtCore import Qt, QUrl, QSize, QTimer, QStringListModel, pyqtSignal
 from PyQt5.QtGui import QPixmap, QImage, QIcon, QColor, QFont
 from PyQt5.QtWidgets import QScrollArea, QSlider, QMainWindow, QMessageBox, QMenuBar, QDialog, QColorDialog, QFormLayout, QLineEdit, QMenu, QAction, QListWidgetItem, QListWidget, QTabWidget, QApplication, QWidget, QVBoxLayout, QComboBox, QLabel, QFrame, QHBoxLayout, QFileDialog, QSizePolicy, QSpinBox, QPushButton
 from PyQt5.QtWidgets import QApplication, QStyleFactory, QProgressBar
+from FrameDialog import LoadingDialog
 from ResourcePackBuilder import ResourcePackBuilder
 from io import BytesIO
+import json
 import sys
 import os
 
@@ -12,7 +14,8 @@ class PackControls(QWidget):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
-
+        
+        self.used_paintings = {}
         PackConrols_layout = QVBoxLayout()
 
         # Pack Info
@@ -39,12 +42,20 @@ class PackControls(QWidget):
         button_layout = QHBoxLayout()
         self.add_button = QPushButton("Add Painting", self)
         self.add_button.clicked.connect(self.writeImage)
-        self.export_button = QPushButton("Save Pack", self)
-        self.export_button.clicked.connect(self.parent.savePack)
+        self.export_button = QPushButton("Export Pack", self)
+        self.export_button.clicked.connect(self.exportPack)
         button_layout.addWidget(self.add_button)
         button_layout.addWidget(self.export_button)
         PackConrols_layout.addLayout(button_layout)
         self.setLayout(PackConrols_layout)
+
+    def updateButtonEnabled(self):
+        if self.listwidget.count() == 0:
+            self.export_button.setEnabled(False)
+            return False
+        else:
+            self.export_button.setEnabled(True)
+            return True
 
     def show_context_menu(self, pos):
         global_pos = self.listwidget.mapToGlobal(pos)
@@ -56,6 +67,9 @@ class PackControls(QWidget):
         edit_action.triggered.connect(lambda: self.editImage(item))
         context_menu.addAction(delete_action)
         context_menu.addAction(edit_action)
+        if item == None:
+            delete_action.setEnabled(False)
+            edit_action.setEnabled(False)
         context_menu.exec_(global_pos)
 
     def setPackInfo(self, title, packMeta, icon):
@@ -84,20 +98,43 @@ class PackControls(QWidget):
         try:
             name = item.text().split()[0].lower()
             size = item.text().split()[1].replace("(", "").replace(")", "")
-            self.parent.pack_builder.delFile(f"assets/minecraft/textures/painting/{name}.png")
-            self.listwidget.takeItem(self.listwidget.row(item))
-            self.used_paintings.pop(name, None)
-            if self.size_combo_box.findText(size) == -1:
-                self.size_combo_box.addItem(size)
-            self.updateComboBox()
-            if self.listwidget.count() == 0:
-                self.export_button.setEnabled(False)
-                self.save_draft_action.setEnabled(False)
-            else:
-                self.export_button.setEnabled(True)
-                self.save_draft_action.setEnabled(True)
         except Exception as e:
             print(f"Failed to remove image: {str(e)}")
+            return
+        self.pack_builder.delFile(f"assets/minecraft/textures/painting/{name}.png")
+        self.listwidget.takeItem(self.listwidget.row(item))
+        self.used_paintings.pop(name, None)
+        if self.parent.size_combo_box.findText(size) == -1:
+            self.parent.size_combo_box.addItem(size)
+        self.parent.updateComboBox()
+        if self.listwidget.count() == 0:
+            self.export_button.setEnabled(False)
+            self.parent.save_draft_action.setEnabled(False)
+        else:
+            self.export_button.setEnabled(True)
+            self.parent.save_draft_action.setEnabled(True)
+
+    def editImage(self, item):
+        try:
+            name = item.text().split()[0].lower()
+            size = item.text().split()[1].replace("(", "").replace(")", "")
+        except Exception as e:
+            print(f"Failed to edit image: {str(e)}")
+            return
+        self.pack_builder.delFile(f"assets/minecraft/textures/painting/{name}.png")
+        self.listwidget.takeItem(self.listwidget.row(item))
+        if self.parent.size_combo_box.findText(size) == -1:
+            self.parent.size_combo_box.addItem(size)
+        if self.listwidget.count() == 0:
+            self.export_button.setEnabled(False)
+            self.parent.save_draft_action.setEnabled(False)
+        else:
+            self.export_button.setEnabled(True)
+        paintingMetaData = self.used_paintings[name]
+        self.used_paintings.pop(name, None)
+        self.parent.setCurrentImage(paintingMetaData['file_path'])
+        self.parent.setCurrentData(name, paintingMetaData)
+
 
     def writeImage(self):
         self.parent.lock = True
@@ -107,7 +144,7 @@ class PackControls(QWidget):
         frameName = imageData[paintingName]['frameName']
         size = imageData[paintingName]['size']
         scale_method = imageData[paintingName]['scale_method']
-        backgroundColor = imageData[paintingName]['backgroun_color']
+        backgroundColor = imageData[paintingName]['background_color']
         #imageData[paintingName]['frame_index'] = self.frame_combo_box.currentIndex()
 
 
@@ -119,7 +156,7 @@ class PackControls(QWidget):
         item1.setIcon(QIcon(self.parent.image_label.pixmap()))  # Set QPixmap as an icon
         self.listwidget.addItem(item1)
         self.listwidget.setIconSize(QSize(100, 100))
-        self.parent.used_paintings[paintingName] = imageData
+        self.used_paintings[paintingName] = imageData[paintingName]
         self.parent.updateComboBox()
         self.parent.setButtonEnabled(False)
         self.parent.image_label.clear()
@@ -128,6 +165,45 @@ class PackControls(QWidget):
         self.parent.view_size = 400
         self.parent.image_label.setFixedSize(self.parent.view_size, self.parent.view_size)
         self.parent.handle_dropped_image()
+
+    def exportPack(self):
+        options = QFileDialog.Options()
+        file, _ = QFileDialog.getSaveFileName(self, "Save Resource Pack", f"{self.packName}.zip", "MC Resource Pack (*.zip);;All Files (*)", options=options)
+        if file:
+            self.pack_builder.writePack(file)
+            QMessageBox.information(self, "Pack Saved", f"Resource Pack saved to\n{file}")
+
+    def loadDraft(self):
+        dialog = LoadingDialog(self)
+        file_name, _ = QFileDialog.getOpenFileName(self, 'Load Draft', '', 'PaintingStudio Draft (*.json)')
+        if file_name:
+            self.listwidget.clear()
+            self.used_paintings = {}
+            self.parent.updateComboBox()
+            with open(file_name) as f:
+                loaded_paintings = json.load(f)
+            i=1
+            dialog.show_loading(len(loaded_paintings))
+            for paintingName in loaded_paintings:
+                self.used_paintings[paintingName] = loaded_paintings[paintingName]
+                paintingMetaData = loaded_paintings[paintingName]
+                self.used_paintings.pop(paintingName, None)
+                self.parent.setCurrentImage(paintingMetaData['file_path'])
+                self.parent.setCurrentData(paintingName, paintingMetaData)
+                self.writeImage()
+                dialog.update_progress_signal.emit(i)
+                QApplication.processEvents()
+                i+=1
+            dialog.close_dialog()
+
+    def saveDraft(self, file=None):
+        options = QFileDialog.Options()
+        if file == None:
+            file, _ = QFileDialog.getSaveFileName(self, "Save Draft", f"{self.packName}.json", "PaintingStudio Draft (*.json)", options=options)
+        if file:
+            with open(file, "w") as fp:
+                json.dump(self.used_paintings, fp)
+            QMessageBox.information(self, "Draft Saved", f"Draft saved to\n{file}")
 
     def resource_path(self, file):
         if getattr(sys, 'frozen', False):
