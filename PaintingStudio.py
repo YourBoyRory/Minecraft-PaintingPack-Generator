@@ -3,73 +3,15 @@ import json
 import sys
 import requests
 from pathlib import Path
-from PyQt5.QtCore import Qt, QUrl, QSize, QStringListModel
+from PyQt5.QtCore import Qt, QUrl, QSize, QTimer, QStringListModel, pyqtSignal
 from PyQt5.QtGui import QPixmap, QImage, QIcon, QColor, QFont
 from PyQt5.QtWidgets import QScrollArea, QSlider, QMainWindow, QMessageBox, QMenuBar, QDialog, QColorDialog, QFormLayout, QLineEdit, QMenu, QAction, QListWidgetItem, QListWidget, QTabWidget, QApplication, QWidget, QVBoxLayout, QComboBox, QLabel, QFrame, QHBoxLayout, QFileDialog, QSizePolicy, QSpinBox, QPushButton
-from PyQt5.QtWidgets import QApplication, QStyleFactory
+from PyQt5.QtWidgets import QApplication, QStyleFactory, QProgressBar
 from io import BytesIO
 from PIL import Image
 from PaintingGenerator import PaintingGenerator
 from ResourcePackBuilder import ResourcePackBuilder
-
-class InputDialog(QDialog):
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.icon = None
-        self.setWindowTitle("Create New Pack")
-        self.setObjectName("Frame")
-        # Create form layout
-        layout = QFormLayout()
-
-        # Create input fields
-        self.title_input = QLineEdit("PaintingPack")
-        self.description_input = QLineEdit("My Painting Pack")
-        self.number_input = QSpinBox()
-        self.number_input.setValue(42)
-        self.number_input.setRange(0, 100)  # Set the range for the spinner
-        self.iconButton = QPushButton("Set Pack Icon")
-        self.iconButton.clicked.connect(self.setIcon)
-
-        # Add fields to the layout
-        layout.addRow("Title:", self.title_input)
-        layout.addRow("Description:", self.description_input)
-        layout.addRow("Pack Format:", self.number_input)
-        layout.addRow(self.iconButton)
-
-        # Create Ok and Cancel buttons
-        self.ok_button = QPushButton("Ok")
-        self.cancel_button = QPushButton("Cancel")
-
-        # Add buttons to the layout
-        layout.addRow(self.ok_button, self.cancel_button)
-
-        # Set dialog layout
-        self.setLayout(layout)
-
-        # Connect buttons to functions
-        self.ok_button.clicked.connect(self.on_ok_button_clicked)
-        self.cancel_button.clicked.connect(self.reject)
-
-    def get_data(self):
-        # Return the data entered by the user
-        return self.title_input.text(), self.description_input.text(), self.number_input.value(), self.icon
-
-    def on_ok_button_clicked(self):
-        # Validate required fields before accepting the form
-        if not self.title_input.text().strip() or not self.description_input.text().strip():
-            QMessageBox.information(self, "Pack not Created", "You need a Title and Description")
-        else:
-            self.accept()  # Proceed with accepting the form if validation passes
-
-    def setIcon(self):
-        lastText = self.iconButton.text()
-        self.iconButton.setText("Set Pack Icon")
-        file_name, _ = QFileDialog.getOpenFileName(self, 'Select Pack Icon', '', 'Images (*.png *.xpm *.jpg *.jpeg *.bmp *.gif)')
-        if file_name:
-            self.icon = file_name
-            self.iconButton.setText("Icon Set!")
-        else:
-            self.iconButton.setText(lastText)
+from FrameDialog import LoadingDialog, InputDialog
 
 class PaintingStudio(QMainWindow):
 
@@ -100,12 +42,18 @@ class PaintingStudio(QMainWindow):
         help_menu = menubar.addMenu('Help')
 
         new_pack_action = QAction('New Pack', self)
+        open_draft_action = QAction('Open Draft', self)
+        self.save_draft_action = QAction('Save Draft', self)
         new_pack_action.triggered.connect(self.newPack)
+        open_draft_action.triggered.connect(self.loadFromFile)
+        self.save_draft_action.triggered.connect(self.saveToFile)
 
         help_action = QAction('Help', self)
         help_action.triggered.connect(self.prog_help)
 
         file_menu.addAction(new_pack_action)
+        file_menu.addAction(open_draft_action)
+        file_menu.addAction(self.save_draft_action)
         help_menu.addAction(help_action)
 
         """ Left Bar """
@@ -307,11 +255,13 @@ class PaintingStudio(QMainWindow):
             self.packIcon_label.setPixmap(pixmap.scaled(QSize(100, 100), aspectRatioMode=1))
             self.packTitle_label.setText(f"{title}\nFormat: {number}\n\n{description}")
 
-
-            #print(self.pack_builder.packData)
-            self.listwidget.clear()
             self.used_paintings = {}
+            self.listwidget.clear()
+            self.size_combo_box.clear()
+            for key in self.paintings:
+                self.size_combo_box.addItem(key)
             self.updateComboBox()
+
 
     def view_slider_changed(self):
         self.update_view_size()
@@ -337,8 +287,10 @@ class PaintingStudio(QMainWindow):
     def setButtonEnabled(self, value):
         if self.listwidget.count() == 0:
             self.export_button.setEnabled(False)
+            self.save_draft_action.setEnabled(False)
         else:
             self.export_button.setEnabled(True)
+            self.save_draft_action.setEnabled(True)
         self.add_button.setEnabled(value)
         self.view_slider.setEnabled(value)
         return
@@ -354,9 +306,9 @@ class PaintingStudio(QMainWindow):
         global_pos = self.listwidget.mapToGlobal(pos)
         item = self.listwidget.itemAt(pos)
         context_menu = QMenu(self)
-        delete_action = QAction("Delete Item", self)
+        delete_action = QAction("Delete Painting", self)
         delete_action.triggered.connect(lambda: self.removeImage(item))
-        edit_action = QAction("Edit Item", self)
+        edit_action = QAction("Edit Painting", self)
         edit_action.triggered.connect(lambda: self.editImage(item))
         context_menu.addAction(delete_action)
         context_menu.addAction(edit_action)
@@ -364,31 +316,67 @@ class PaintingStudio(QMainWindow):
 
     def removeImage(self, item):
         try:
-            name = item.text().split()
-            self.pack_builder.delFile(f"assets/minecraft/textures/painting/{name[0].lower()}.png")
+            name = item.text().split()[0].lower()
+            size = item.text().split()[1].replace("(", "").replace(")", "")
+            self.pack_builder.delFile(f"assets/minecraft/textures/painting/{name}.png")
             self.listwidget.takeItem(self.listwidget.row(item))
-            self.used_paintings.pop(name[0].lower(), None)
-            self.painting_combo_box.addItem(name[0].lower())
+            self.used_paintings.pop(name, None)
+            if self.size_combo_box.findText(size) == -1:
+                self.size_combo_box.addItem(size)
+            self.updateComboBox()
             if self.listwidget.count() == 0:
                 self.export_button.setEnabled(False)
+                self.save_draft_action.setEnabled(False)
             else:
                 self.export_button.setEnabled(True)
+                self.save_draft_action.setEnabled(True)
         except Exception as e:
             print(f"Failed to remove image: {str(e)}")
 
     def editImage(self, item):
-        #try:
-        name = item.text().split()
-        self.pack_builder.delFile(f"assets/minecraft/textures/painting/{name[0].lower()}.png")
-        self.listwidget.takeItem(self.listwidget.row(item))
-        self.painting_combo_box.addItem(name[0].lower())
-        if self.listwidget.count() == 0:
-            self.export_button.setEnabled(False)
-        else:
-            self.export_button.setEnabled(True)
-        self.loadImageFromSaved(name[0].lower())
-        #except Exception as e:
-        #    print(f"Failed to edit image: {str(e)}")
+        try:
+            name = item.text().split()[0].lower()
+            size = item.text().split()[1].replace("(", "").replace(")", "")
+            self.pack_builder.delFile(f"assets/minecraft/textures/painting/{name}.png")
+            self.listwidget.takeItem(self.listwidget.row(item))
+            if self.size_combo_box.findText(size) == -1:
+                self.size_combo_box.addItem(size)
+            if self.listwidget.count() == 0:
+                self.export_button.setEnabled(False)
+                self.save_draft_action.setEnabled(False)
+            else:
+                self.export_button.setEnabled(True)
+            self.loadImageFromSaved(name)
+        except Exception as e:
+            print(f"Failed to edit image: {str(e)}")
+
+    def loadFromFile(self):
+        dialog = LoadingDialog(self)
+        file_name, _ = QFileDialog.getOpenFileName(self, 'Load Draft', '', 'PaintingStudio Draft (*.json)')
+        if file_name:
+            self.listwidget.clear()
+            self.used_paintings = {}
+            self.updateComboBox()
+            with open(file_name) as f:
+                loaded_paintings = json.load(f)
+            i=1
+            dialog.show_loading(len(loaded_paintings))
+            for paintingName in loaded_paintings:
+                self.used_paintings[paintingName] = loaded_paintings[paintingName]
+                self.loadImageFromSaved(paintingName)
+                self.writeImage()
+                dialog.update_progress_signal.emit(i)
+                QApplication.processEvents()
+                i+=1
+            dialog.close_dialog()
+
+    def saveToFile(self):
+        options = QFileDialog.Options()
+        file, _ = QFileDialog.getSaveFileName(self, "Save Draft", f"{self.packName}.json", "PaintingStudio Draft (*.json)", options=options)
+        if file:
+            with open(file, "w") as fp:
+                json.dump(self.used_paintings, fp)
+            QMessageBox.information(self, "Draft Saved", f"Draft saved to\n{file}")
 
     def loadImageFromSaved(self, paintingName):
         detail = self.used_paintings[paintingName]["detail"]
@@ -403,6 +391,7 @@ class PaintingStudio(QMainWindow):
             self.updateComboBox()
 
         self.file_path_stack.append(QUrl(f'file://{file_path}'))
+        self.init_stack_count = len(self.file_path_stack)
         self.handle_dropped_image()
 
         self.backgroundColor = background_color
@@ -412,8 +401,6 @@ class PaintingStudio(QMainWindow):
         self.painting_combo_box.setCurrentText(paintingName)
         self.frame_combo_box.setCurrentText(frameName)
         self.detail_spin_box.setValue(detail)
-
-
 
     def writeImage(self):
         self.lock = True
@@ -442,7 +429,6 @@ class PaintingStudio(QMainWindow):
             "background_color": self.backgroundColor,
             "file_path": self.art_path,
         }
-        print(self.used_paintings)
         self.updateComboBox()
         self.setButtonEnabled(False)
         self.image_label.clear()
@@ -502,7 +488,6 @@ class PaintingStudio(QMainWindow):
                 else:
                     self.art_path = url.toLocalFile()
                     self.art = Image.open(self.art_path)
-                print(f"Test: {self.art}")
 
                 file_name = Path(self.art_path).name.split(".")[0].lower()
                 self.autoSetComboBoxes(file_name)
@@ -516,7 +501,7 @@ class PaintingStudio(QMainWindow):
                 self.image_label.setText(f"Failed to open image: {str(e)}")
         else:
             self.init_stack_count = 0
-            print("Tree Done.")
+            print("Stack is empty.")
 
     def autoSetComboBoxes(self, filename):
         try:
@@ -594,6 +579,9 @@ class PaintingStudio(QMainWindow):
         size = self.size_combo_box.currentText()
         self.frame_combo_box.clear()
         self.painting_combo_box.clear()
+        if size == "":
+            print("No Paintings.")
+            return
         for types in self.paintings[size]:
             self.frame_combo_box.addItem(types)
             if types not in self.used_paintings:
@@ -625,7 +613,6 @@ def set_theme(app):
                     text=True
                 )
                 theme = result.stdout.strip().lower()
-                print(theme)
                 if 'dark' in theme:
                     app.setStyle("Adwaita-Dark")
                 else:
@@ -640,7 +627,6 @@ def set_theme(app):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     set_theme(app)
-    print(QStyleFactory.keys())
     window = PaintingStudio()
     #window.setObjectName("Frame")
     window.show()
