@@ -14,7 +14,8 @@ class PackControls(QWidget):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
-        
+
+        self.packCreated = False
         self.used_paintings = {}
         PackConrols_layout = QVBoxLayout()
 
@@ -32,7 +33,7 @@ class PackControls(QWidget):
         self.listwidget = QListWidget(self)
         self.listwidget.setSelectionMode(3)
         self.listwidget.setContextMenuPolicy(3)
-        self.listwidget.customContextMenuRequested.connect(self.show_context_menu)
+        self.listwidget.customContextMenuRequested.connect(self.showContextMenu)
         font = QFont()
         font.setPointSize(9)
         self.listwidget.setFont(font)
@@ -57,7 +58,7 @@ class PackControls(QWidget):
             self.export_button.setEnabled(True)
             return True
 
-    def show_context_menu(self, pos):
+    def showContextMenu(self, pos):
         global_pos = self.listwidget.mapToGlobal(pos)
         item = self.listwidget.itemAt(pos)
         context_menu = QMenu(self)
@@ -72,27 +73,33 @@ class PackControls(QWidget):
             edit_action.setEnabled(False)
         context_menu.exec_(global_pos)
 
+    def reset(self):
+        self.used_paintings = {}
+        number = self.packMeta['pack']['pack_format']
+        description = self.packMeta['pack']['description']
+        self.pack_builder = ResourcePackBuilder(self.packMeta)
+        if self.icon != None:
+            pil_image = Image.open(self.icon).convert('RGB')
+            pil_image_resized = pil_image.resize((64,64))
+            image_bytes = BytesIO()
+            pil_image_resized.save(image_bytes, format='PNG')
+            image_bytes.seek(0)
+            self.pack_builder.addFile("assets/pack.png", image_bytes.read())
+            data = pil_image_resized.tobytes("raw", "RGB")
+            qim = QImage(data, pil_image_resized.width, pil_image_resized.height, QImage.Format_RGB888)
+            pixmap = QPixmap(QPixmap.fromImage(qim))
+        else:
+            #print("No Image Provided")
+            pixmap = QPixmap(self.resource_path("pack.png"))
+        self.packIcon_label.setPixmap(pixmap.scaled(QSize(100, 100), aspectRatioMode=1))
+        self.packTitle_label.setText(f"{self.packName}\nFormat: {number}\n\n{description}")
+        self.listwidget.clear()
+
     def setPackInfo(self, title, packMeta, icon):
-            self.packName = title
-            number = packMeta['pack']['pack_format']
-            description = packMeta['pack']['description']
-            self.pack_builder = ResourcePackBuilder(packMeta)
-            if icon != None:
-                pil_image = Image.open(icon).convert('RGB')
-                pil_image_resized = pil_image.resize((64,64))
-                image_bytes = BytesIO()
-                pil_image_resized.save(image_bytes, format='PNG')
-                image_bytes.seek(0)
-                self.pack_builder.addFile("assets/pack.png", image_bytes.read())
-                data = pil_image_resized.tobytes("raw", "RGB")
-                qim = QImage(data, pil_image_resized.width, pil_image_resized.height, QImage.Format_RGB888)
-                pixmap = QPixmap(QPixmap.fromImage(qim))
-            else:
-                print("No Image Provided")
-                pixmap = QPixmap(self.resource_path("pack.png"))
-            self.packIcon_label.setPixmap(pixmap.scaled(QSize(100, 100), aspectRatioMode=1))
-            self.packTitle_label.setText(f"{title}\nFormat: {number}\n\n{description}")
-            self.listwidget.clear()
+        self.packName = title
+        self.packMeta = packMeta
+        self.icon = icon
+        self.reset()
 
     def removeImage(self, item):
         try:
@@ -137,34 +144,31 @@ class PackControls(QWidget):
 
 
     def writeImage(self):
-        self.parent.lock = True
-        imageData, paintingName, painting = self.parent.getCurrentImageData()
+        #self.parent.lock = True # Lock UI
 
+        # Get the image data
+        imageData, paintingName, painting = self.parent.getCurrentImageData()
         detail = imageData[paintingName]['detail']
         frameName = imageData[paintingName]['frameName']
         size = imageData[paintingName]['size']
         scale_method = imageData[paintingName]['scale_method']
         backgroundColor = imageData[paintingName]['background_color']
-        #imageData[paintingName]['frame_index'] = self.frame_combo_box.currentIndex()
 
-
+        # Push image to pack
         image_bytes = BytesIO()
         painting.save(image_bytes, format='PNG')
         image_bytes.seek(0)
         self.pack_builder.addFile(f'assets/minecraft/textures/painting/{paintingName}.png', image_bytes.read())
+
+        # Add to Lists
         item1 = QListWidgetItem(f"{paintingName.title()} ({size})\nFrame: {frameName.title()}\n\nDetail: {detail}x\nScale Method: {scale_method}\nBackground Color: {backgroundColor}")
         item1.setIcon(QIcon(self.parent.image_label.pixmap()))  # Set QPixmap as an icon
         self.listwidget.addItem(item1)
         self.listwidget.setIconSize(QSize(100, 100))
         self.used_paintings[paintingName] = imageData[paintingName]
-        self.parent.updateComboBox()
-        self.parent.setButtonEnabled(False)
-        self.parent.image_label.clear()
-        self.parent.image_label.setText("Drop Next image here")
-        self.parent.path_label.setText("")
-        self.parent.view_size = 400
-        self.parent.image_label.setFixedSize(self.parent.view_size, self.parent.view_size)
-        self.parent.handle_dropped_image()
+
+        # Reset UI
+        self.parent.getNextImage()
 
     def exportPack(self):
         options = QFileDialog.Options()
@@ -177,22 +181,23 @@ class PackControls(QWidget):
         dialog = LoadingDialog(self)
         file_name, _ = QFileDialog.getOpenFileName(self, 'Load Draft', '', 'PaintingStudio Draft (*.json)')
         if file_name:
-            self.listwidget.clear()
-            self.used_paintings = {}
-            self.parent.updateComboBox()
+            self.reset()
+            self.parent.reset()
             with open(file_name) as f:
                 loaded_paintings = json.load(f)
             i=1
             dialog.show_loading(len(loaded_paintings))
+            self.lock = False
             for paintingName in loaded_paintings:
                 self.used_paintings[paintingName] = loaded_paintings[paintingName]
                 paintingMetaData = loaded_paintings[paintingName]
                 self.used_paintings.pop(paintingName, None)
+                self.parent.setCurrentData(paintingName, paintingMetaData)
                 self.parent.setCurrentImage(paintingMetaData['file_path'])
                 self.parent.setCurrentData(paintingName, paintingMetaData)
+                QApplication.processEvents()
                 self.writeImage()
                 dialog.update_progress_signal.emit(i)
-                QApplication.processEvents()
                 i+=1
             dialog.close_dialog()
 
