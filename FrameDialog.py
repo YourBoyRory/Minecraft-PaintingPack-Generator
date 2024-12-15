@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import QApplication, QStyleFactory, QProgressBar
 class HelpDialog(QDialog):
     def __init__(self, parent):
         super().__init__(parent)
-        self.setWindowTitle("Create New Pack")
+        self.setWindowTitle("Help")
         self.setModal(True)
         self.setObjectName("Frame")
         self.setFixedSize(300, 100)
