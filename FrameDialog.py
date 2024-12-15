@@ -3,6 +3,16 @@ from PyQt5.QtGui import QPixmap, QImage, QIcon, QColor, QFont
 from PyQt5.QtWidgets import QScrollArea, QSlider, QMainWindow, QMessageBox, QMenuBar, QDialog, QColorDialog, QFormLayout, QLineEdit, QMenu, QAction, QListWidgetItem, QListWidget, QTabWidget, QApplication, QWidget, QVBoxLayout, QComboBox, QLabel, QFrame, QHBoxLayout, QFileDialog, QSizePolicy, QSpinBox, QPushButton
 from PyQt5.QtWidgets import QApplication, QStyleFactory, QProgressBar
 
+class HelpDialog(QDialog):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setWindowTitle("Create New Pack")
+        self.setModal(True)
+        self.setObjectName("Frame")
+        self.setFixedSize(300, 100)
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("WIP"))
+
 class LoadingDialog(QDialog):
     # Define a signal to update progress
     update_progress_signal = pyqtSignal(int)
