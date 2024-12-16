@@ -132,10 +132,7 @@ class PaintingStudio(QMainWindow):
 
     def addToComboBox(self, item):
         if self.paintingEditor.size_combo_box.findText(item) == -1:
-            print("adding", item)
             self.paintingEditor.size_combo_box.addItem(item)
-        else:
-            print(item, "Exists")
 
 def resource_path(file):
     if getattr(sys, 'frozen', False):
@@ -165,7 +162,7 @@ def set_theme(app):
         except:
             print("Failed to load darkmode")
             pass
-    print(f"Loaded Theme: {current_style} on {desktop}")
+    #print(f"Loaded Theme: {current_style} on {desktop}")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

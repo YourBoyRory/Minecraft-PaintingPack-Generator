@@ -265,7 +265,6 @@ class PaintingEditor(QWidget):
 
     def setCurrentImage(self, file_path):
         # Put loaded image on the file stack
-        print(file_path)
         self.file_path_stack.append(QUrl(file_path))
         self.init_stack_count = len(self.file_path_stack)
         # Process image
@@ -273,7 +272,6 @@ class PaintingEditor(QWidget):
 
     def setCurrentData(self, paintingName, paintingMetaData):
         # Load Meta Data
-        print(paintingMetaData)
         detail = paintingMetaData["detail"]
         frameName = paintingMetaData["frameName"]
         size = paintingMetaData["size"]
