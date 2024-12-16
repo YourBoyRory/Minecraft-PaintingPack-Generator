@@ -1,7 +1,7 @@
 from PyQt5.QtCore import Qt, QUrl, QSize, QTimer, QStringListModel, pyqtSignal
 from PyQt5.QtGui import QPixmap, QImage, QIcon, QColor, QFont
 from PyQt5.QtWidgets import QScrollArea, QSlider, QMainWindow, QMessageBox, QMenuBar, QDialog, QColorDialog, QFormLayout, QLineEdit, QMenu, QAction, QListWidgetItem, QListWidget, QTabWidget, QApplication, QWidget, QVBoxLayout, QComboBox, QLabel, QFrame, QHBoxLayout, QFileDialog, QSizePolicy, QSpinBox, QPushButton
-from PyQt5.QtWidgets import QApplication, QStyleFactory, QProgressBar
+from PyQt5.QtWidgets import QApplication, QStyleFactory, QProgressBar, QSpacerItem
 
 class HelpDialog(QDialog):
     def __init__(self, parent):

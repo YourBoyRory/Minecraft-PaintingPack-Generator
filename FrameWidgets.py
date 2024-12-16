@@ -66,13 +66,14 @@ class ViewPort(QGraphicsView):
         text_item = QGraphicsTextItem(text)
         font = QFont("Sans", 16)
         text_item.setFont(font)
-        #text_item.setDefaultTextColor(Qt.black)
+        text_item.setDefaultTextColor(Qt.white)
 
         # Center the text in the scene
         text_item.setPos(200, 250)  # Adjust the position to suit your needs
 
         # Add the text item to the scene
         scene = QGraphicsScene(self)
+        scene.setObjectName("IgnoreMin")
         scene.addItem(text_item)
         self.setScene(scene)
 
@@ -117,6 +118,7 @@ class PaintingEditor(QWidget):
         combine_OptionsViewport = QHBoxLayout()
         """Options Pane"""
         PaintingOptions = QWidget()
+        PaintingOptions.setObjectName("Frame")
         PaintingOptions_layout = QVBoxLayout()
 
         lable_width = 120
@@ -196,6 +198,7 @@ class PaintingEditor(QWidget):
 
         """Tool Bar"""
         ToolBar = QWidget()
+        ToolBar.setObjectName("Frame")
         ToolBar_layout = QVBoxLayout()
         # View Port Tools
         tools_layout = QHBoxLayout()

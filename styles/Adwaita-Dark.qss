@@ -1,0 +1,70 @@
+/* General QWidget styling */
+
+QWidget {
+    border: 1px solid #393939;
+    background-color: #393939; 
+    color: #f9fafa;
+}
+
+QWidget#IgnoreMin {
+    min-height: 1px;
+}
+
+QWidget:disabled {
+    border: 1px solid #2d2d2d;
+    background-color: #2d2d2d;
+    color: #999999;
+}
+QWidget:focus {
+    border: 2px solid #587392;
+}
+
+QWidget#Frame {
+    background-color: #242424;
+    border: none;
+}
+
+QLabel {
+    background-color: #242424;
+    border: none;
+}
+
+QCheckBox {
+    background-color: #242424;
+    border: none;
+}
+
+QSlider {
+    background-color: #242424;
+    border: none;
+}
+
+QSlider:disabled {
+    background-color: #242424;
+    border: none;
+}
+
+QLineEdit {
+    min-height: 25px;
+}
+
+QSpinBox {
+    min-height: 25px;
+}
+
+QComboBox {
+    min-height: 25px;
+}
+
+QPushButton {
+    min-height: 25px;
+    min-width: 100px;
+}
+
+QPushButton:hover {
+    background-color: #454545;
+}
+
+QPushButton:pressed {
+    background-color: #707070;
+}

@@ -18,7 +18,9 @@ class PaintingStudio(QMainWindow):
 
     def __init__(self):
         super().__init__()
+        self.setObjectName("Frame")
         self.central_widget = QWidget()
+        self.central_widget.setObjectName("Frame")
         self.setCentralWidget(self.central_widget)
         layout = QHBoxLayout(self)
         self.central_widget.setLayout(layout)
@@ -135,6 +137,12 @@ class PaintingStudio(QMainWindow):
         else:
             print(item, "Exists")
 
+def resource_path(file):
+    if getattr(sys, 'frozen', False):
+        base_path = sys._MEIPASS
+    else:
+        base_path = os.path.dirname(__file__)
+    return os.path.join(base_path, 'styles', file)
 
 def set_theme(app):
     desktop = ""
@@ -145,26 +153,18 @@ def set_theme(app):
         ]
         desktop = os.environ.get('DESKTOP_SESSION')
         if any(sub in desktop for sub in gtk_based):
-            try:
-                import subprocess
-                result = subprocess.run(
-                    ['gsettings', 'get', 'org.gnome.desktop.interface', 'color-scheme'],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True
-                )
-                theme = result.stdout.strip().lower()
-                print(theme)
-                if 'dark' in theme:
-                    app.setStyle("Adwaita-Dark")
-                else:
-                    app.setStyle("Adwaita")
-            except:
-                print("Failed to get theme satus")
-                app.setStyle("Adwaita")
+            app.setStyle("Adwaita-Dark")
     except:
         pass
     current_style = app.style().objectName()
+    if desktop == "" or current_style == "windowsvista":
+        desktop = "windows"
+        try:
+            with open(resource_path("Adwaita-Dark.qss"), "r") as f:
+                app.setStyleSheet(f.read())
+        except:
+            print("Failed to load darkmode")
+            pass
     print(f"Loaded Theme: {current_style} on {desktop}")
 
 if __name__ == "__main__":
