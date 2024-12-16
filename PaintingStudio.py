@@ -154,6 +154,7 @@ def set_theme(app):
     except:
         pass
     current_style = app.style().objectName()
+    desktop = ""
     if desktop == "" or current_style == "windowsvista":
         desktop = "windows"
         try:

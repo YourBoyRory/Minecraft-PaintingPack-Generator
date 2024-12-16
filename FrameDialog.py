@@ -19,7 +19,7 @@ class LoadingDialog(QDialog):
 
     def __init__(self, parent):
         super().__init__(parent)
-
+        self.setObjectName("Frame")
         # Initialize the dialog window
         self.setWindowTitle("Opening Draft")
         self.setModal(True)
