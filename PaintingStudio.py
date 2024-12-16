@@ -154,11 +154,13 @@ def set_theme(app):
                     text=True
                 )
                 theme = result.stdout.strip().lower()
+                print(theme)
                 if 'dark' in theme:
                     app.setStyle("Adwaita-Dark")
                 else:
                     app.setStyle("Adwaita")
             except:
+                print("Failed to get theme satus")
                 app.setStyle("Adwaita")
     except:
         pass
