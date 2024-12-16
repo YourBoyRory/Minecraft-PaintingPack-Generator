@@ -265,7 +265,8 @@ class PaintingEditor(QWidget):
 
     def setCurrentImage(self, file_path):
         # Put loaded image on the file stack
-        self.file_path_stack.append(QUrl(f'file://{file_path}'))
+        print(file_path)
+        self.file_path_stack.append(QUrl(file_path))
         self.init_stack_count = len(self.file_path_stack)
         # Process image
         self.getNextImage()
@@ -300,7 +301,7 @@ class PaintingEditor(QWidget):
         imageData[paintingName]['scale_method'] = self.scale_combo_box.currentText()
         imageData[paintingName]['background_color'] = self.backgroundColor
         imageData[paintingName]['frame_index'] = self.frame_combo_box.currentIndex()
-        imageData[paintingName]['file_path'] = self.art_path
+        imageData[paintingName]['file_path'] = self.art_url
         return imageData, paintingName, self.painting
 
     def getCurrentImage(self):
@@ -321,6 +322,7 @@ class PaintingEditor(QWidget):
                 url = self.file_path_stack.pop()
                 if url.toLocalFile() == "":
                     self.art_path = url.toString()
+                    self.art_url = url.toString()
                     response = requests.get(self.art_path)
                     img_data = BytesIO(response.content)
                     self.art = Image.open(img_data)
@@ -328,6 +330,7 @@ class PaintingEditor(QWidget):
                 else:
                     self.art_path = url.toLocalFile()
                     self.art = Image.open(self.art_path)
+                    self.art_url = url.toString()
 
                 file_name = Path(self.art_path).name.split(".")[0].lower()
                 self.forceViewPortDraw()
