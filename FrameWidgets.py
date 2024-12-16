@@ -1,7 +1,7 @@
 from PyQt5.QtCore import Qt, QUrl, QSize, QTimer, QStringListModel, pyqtSignal
-from PyQt5.QtGui import QPixmap, QImage, QIcon, QColor, QFont
+from PyQt5.QtGui import QPixmap, QImage, QIcon, QColor, QFont, QWheelEvent
 from PyQt5.QtWidgets import QScrollArea, QSlider, QMainWindow, QMessageBox, QMenuBar, QDialog, QColorDialog, QFormLayout, QLineEdit, QMenu, QAction, QListWidgetItem, QListWidget, QTabWidget, QApplication, QWidget, QVBoxLayout, QComboBox, QLabel, QFrame, QHBoxLayout, QFileDialog, QSizePolicy, QSpinBox, QPushButton
-from PyQt5.QtWidgets import QApplication, QStyleFactory, QProgressBar
+from PyQt5.QtWidgets import QApplication, QCheckBox, QStyleFactory, QProgressBar, QGraphicsView, QGraphicsScene, QGraphicsTextItem
 from FrameDialog import LoadingDialog
 from PaintingGenerator import PaintingGenerator
 from ResourcePackBuilder import ResourcePackBuilder
@@ -11,6 +11,85 @@ from PIL import Image
 import json
 import sys
 import os
+
+class ViewPort(QGraphicsView):
+    def __init__(self, parent):
+        super().__init__()
+        self.parent = parent
+        self.displayingImage = False
+        self.current_zoom = 0.4 # start zoom
+        self.minZoom = 0.1
+        self.maxZoom = 3.0 
+        self.setAcceptDrops(True)
+    
+    def wheelEvent(self, event: QWheelEvent):
+        # Get the wheel delta (positive for scrolling up, negative for scrolling down)
+        angle_delta = event.angleDelta().y()
+        factor = 1.2
+        # Determine the zoom factor (scale in and scale out)
+        if angle_delta > 0:
+            # Zoom in
+            zoom = min(self.current_zoom * factor, self.maxZoom)
+        else:
+            # Zoom out
+            zoom = max(self.current_zoom / factor, self.minZoom)
+            
+        self.parent.view_slider.setValue(int(zoom * 100))
+        event.accept()  # Mark the event as handled
+    
+    def setZoom(self, zoom):
+        if self.displayingImage:
+            self.resetTransform()
+            self.scale(zoom , zoom)
+        #print(zoom)
+        self.current_zoom = zoom
+        
+    
+    def loadImage(self, pixmap):
+        self.displayingImage = True
+        self.setZoom(self.current_zoom)
+        self.setDragMode(QGraphicsView.ScrollHandDrag)
+
+        # Create a QGraphicsPixmapItem to hold the image and add it to the scene
+        scene = QGraphicsScene(self)
+        scene.addPixmap(pixmap)
+        self.setScene(scene)
+
+        # Optionally, set the scene's background color
+        #self.currScene.setBackgroundBrush(Qt.white)
+
+    def displayText(self, text):
+        self.displayingImage = False
+        self.resetTransform()
+        self.setDragMode(QGraphicsView.NoDrag)
+        # Create and add text item to the scene
+        text_item = QGraphicsTextItem(text)
+        font = QFont("Sans", 16)
+        text_item.setFont(font)
+        #text_item.setDefaultTextColor(Qt.black)
+
+        # Center the text in the scene
+        text_item.setPos(200, 250)  # Adjust the position to suit your needs
+
+        # Add the text item to the scene
+        scene = QGraphicsScene(self)
+        scene.addItem(text_item)
+        self.setScene(scene)
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.accept()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.accept()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        self.parent.dropEvent(event)
 
 class PaintingEditor(QWidget):
     
@@ -108,22 +187,11 @@ class PaintingEditor(QWidget):
         PaintingOptions.setMaximumWidth(350)
 
         """View Port"""
-        ViewPort = QWidget()
-        ViewPort_layout = QVBoxLayout()
-        # Main View Port
-        scroll_area = QScrollArea(self)
-        self.image_label = QLabel("Drop image here to customize your painting", self)
-        scroll_area.setWidget(self.image_label)
-        scroll_area.setAlignment(Qt.AlignCenter)
-        self.image_label.setAlignment(Qt.AlignCenter)
-        self.image_label.setWordWrap(True)
-        self.image_label.setFixedSize(self.view_size, self.view_size)
-        #Add Layouts
-        ViewPort_layout.addWidget(scroll_area)
-        ViewPort.setLayout(ViewPort_layout)
-        combine_OptionsViewport.addWidget(ViewPort)
+        self.viewPort = ViewPort(self)
+        self.viewPort.displayText("Drop image here to customize your painting")
+        combine_OptionsViewport.addWidget(self.viewPort)
         PaintingEditor_Layout.addLayout(combine_OptionsViewport)
-        ViewPort.setMinimumWidth(600)
+        self.viewPort.setMinimumWidth(600)
 
 
         """Tool Bar"""
@@ -134,16 +202,22 @@ class PaintingEditor(QWidget):
         self.path_label = QLabel(" ", self)
         self.path_label.setMinimumWidth(1)
         #self.path_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+        self.keepPaintingSize_checkBox = QCheckBox('Auto Scale', self)
+        self.keepPaintingSize_checkBox.setChecked(True)
+        self.keepPaintingSize_checkBox.stateChanged.connect(self.requestViewPortDraw)
         self.view_slider = QSlider(Qt.Horizontal)
-        self.view_slider.setRange(0,1000)  # Set minimum value
-        self.view_slider.setValue(init_silder_value)  # Set initial value
+        minS = int(self.viewPort.minZoom * 100)
+        maxS = int(self.viewPort.maxZoom * 100)
+        self.view_slider.setRange(minS, maxS)  # Set minimum value
+        self.view_slider.setValue(int(self.viewPort.current_zoom * 100))  # Set initial value
         self.view_slider.setTickPosition(QSlider.TicksBelow)
-        self.view_slider.setTickInterval(125)
+        self.view_slider.setTickInterval((maxS-minS)//6)
         self.view_slider.setFixedWidth(100)
         self.view_slider.setMaximumWidth(150)
         self.view_slider.valueChanged.connect(self.view_slider_changed)
         tools_layout.addWidget(self.path_label)
         tools_layout.addStretch()
+        tools_layout.addWidget(self.keepPaintingSize_checkBox)
         tools_layout.addWidget(self.view_slider)
         #Add Layouts
         ToolBar_layout.addLayout(tools_layout)
@@ -158,30 +232,29 @@ class PaintingEditor(QWidget):
             self.size_combo_box.addItem(key)
         self.updateComboBox()
 
+    def dropEvent(self, event):
+        # Get the dropped file path
+        if self.packConrols.packCreated == True:
+            for file in event.mimeData().urls():
+                self.file_path_stack.append(file)
+            self.init_stack_count = len(self.file_path_stack)
+            self.lock = False
+            self.getNextImage()
+        else:
+            QMessageBox.information(self, "Pack not Created", f"Please create a pack before importing images.")
+
     def reset(self):
         for key in self.paintings:
             self.size_combo_box.addItem(key)
         self.updateComboBox()
         self.parent.setButtonEnabled(False)
-        self.image_label.clear()
-        self.image_label.setText("Drop image here to customize your painting")
+        self.viewPort.displayText("Drop image here to customize your painting")
         self.path_label.setText("")
         self.view_size = 400
-        self.image_label.setFixedSize(self.view_size, self.view_size)
-
 
     def view_slider_changed(self):
-        self.requestViewPortDraw()
-
-    def update_view_size(self, autoScale = False):
-        value = self.view_slider.value()
-        if value <= 500:
-            # Bottom half (100 to 400)
-            self.view_size = int(100 + (value / 500) * 300)
-        else:
-            # Top half (400 to 1600)
-            self.view_size = int(400 + ((value - 500) / 500) * 1200)
-        self.image_label.setFixedSize(self.view_size, self.view_size)
+        zoom = self.view_slider.value() / 100 
+        self.viewPort.setZoom(zoom)
 
     def setButtonEnabled(self, value):
         self.view_slider.setEnabled(value)
@@ -228,7 +301,7 @@ class PaintingEditor(QWidget):
         return imageData, paintingName, self.painting
 
     def getCurrentImage(self):
-        return self.image_label.pixmap()
+        return self.currentPixmap
 
     def showColorDialog(self):
         # Open the QColorDialog
@@ -241,7 +314,7 @@ class PaintingEditor(QWidget):
 
     def getNextImage(self):
         if len(self.file_path_stack) > 0:
-            #try:
+            try:
                 url = self.file_path_stack.pop()
                 if url.toLocalFile() == "":
                     self.art_path = url.toString()
@@ -259,20 +332,18 @@ class PaintingEditor(QWidget):
                 curr = self.init_stack_count-len(self.file_path_stack)
                 self.path_label.setText(f"File: [{curr}/{self.init_stack_count}] - {self.art_path}")
                 self.parent.setButtonEnabled(True)
-            #except Exception as e:
-            #    self.getNextImage()
-            #    self.image_label.setText(f"Failed to open image: {str(e)}")
+            except Exception as e:
+                self.getNextImage()
+                self.viewPort.displayText(f"Failed to open image: {str(e)}")
+                self.path_label.setText("")
         else:
             self.init_stack_count = 0
             #print("Stack is empty.")
             self.lock = True
             self.updateComboBox()
             self.parent.setButtonEnabled(False)
-            self.image_label.clear()
-            self.image_label.setText("Drop Next image here")
+            self.viewPort.displayText("Drop Next image here")
             self.path_label.setText("")
-            self.view_size = 400
-            self.image_label.setFixedSize(self.view_size, self.view_size)
 
     def requestViewPortDraw(self):
         if self.drawThread.isActive():
@@ -291,9 +362,6 @@ class PaintingEditor(QWidget):
             #print("WARN: Locked before Delta timeout. Skipping frame.")
             #return
         #print("Redrawing Viewport.")
-
-        #Setting up UI
-        self.update_view_size()
 
         # Getting Options
         detail = self.detail_spin_box.value()
@@ -314,7 +382,16 @@ class PaintingEditor(QWidget):
         data = pil_image.tobytes("raw", "RGB")
         qim = QImage(data, pil_image.width, pil_image.height, QImage.Format_RGB888)
         pixmap = QPixmap(QPixmap.fromImage(qim))
-        self.image_label.setPixmap(pixmap.scaled(QSize(self.view_size, self.view_size), aspectRatioMode=1))
+        width = 1024
+        height = 1024
+        if not self.keepPaintingSize_checkBox.isChecked():
+            size_split = size.split('x')
+            if len(size_split) < 2:
+                size_split = ["2","2"]
+            width = 256*int(size_split[0])
+            height = 256*int(size_split[1])
+        self.currentPixmap = pixmap.scaled(width, height, Qt.KeepAspectRatio)
+        self.viewPort.loadImage(self.currentPixmap)
 
     def autoSetComboBoxes(self, filename):
         try:
@@ -506,6 +583,7 @@ class PackControls(QWidget):
             self.export_button.setEnabled(True)
         paintingMetaData = self.used_paintings[name]
         self.used_paintings.pop(name, None)
+        self.parent.updateComboBox()
         self.parent.setCurrentImage(paintingMetaData['file_path'])
         self.parent.setCurrentData(name, paintingMetaData)
         self.parent.setLockStatus(False)

@@ -26,24 +26,27 @@ class PaintingStudio(QMainWindow):
         # generated stuff
         self.setWindowTitle("Minecraft Painting Studio")
         self.setGeometry(100, 100, 1000, 600)
-
+        
+        
+        """Menu Bar"""
         menubar = self.menuBar()
+        
+        #File Menu
         file_menu = menubar.addMenu('File')
-        help_menu = menubar.addMenu('Help')
-
         new_pack_action = QAction('New Pack', self)
-        open_draft_action = QAction('Open Draft', self)
-        self.save_draft_action = QAction('Save Draft', self)
         new_pack_action.triggered.connect(self.newPack)
+        file_menu.addAction(new_pack_action)
+        open_draft_action = QAction('Open Draft', self)
         open_draft_action.triggered.connect(self.loadFromFile)
+        file_menu.addAction(open_draft_action)
+        self.save_draft_action = QAction('Save Draft', self)
         self.save_draft_action.triggered.connect(self.saveToFile)
-
+        file_menu.addAction(self.save_draft_action)
+        
+        # Help Menu
+        help_menu = menubar.addMenu('Help')
         help_action = QAction('Help', self)
         help_action.triggered.connect(self.prog_help)
-
-        file_menu.addAction(new_pack_action)
-        file_menu.addAction(open_draft_action)
-        file_menu.addAction(self.save_draft_action)
         help_menu.addAction(help_action)
 
         """ Left Bar """
@@ -59,7 +62,13 @@ class PaintingStudio(QMainWindow):
 
         # Set the whole window to accept drops
         self.setButtonEnabled(False)
-        self.setAcceptDrops(True)
+        #self.setAcceptDrops(True)
+
+    ## Menu Bar ##
+
+    def prog_help(self):
+        dialog = HelpDialog(self)
+        dialog.exec_()
 
     def newPack(self):
         # Create and show the input dialog
@@ -78,6 +87,8 @@ class PaintingStudio(QMainWindow):
                 }
             }
             self.packConrols.setPackInfo(title, packMeta, icon)
+
+    # Wrappers
 
     def reset(self):
         self.paintingEditor.reset()
@@ -119,27 +130,10 @@ class PaintingStudio(QMainWindow):
 
     def addToComboBox(self, item):
         if self.paintingEditor.size_combo_box.findText(item) == -1:
+            print("adding", item)
             self.paintingEditor.size_combo_box.addItem(item)
-
-    def dragEnterEvent(self, event):
-        if event.mimeData().hasUrls():
-            event.accept()
         else:
-            event.ignore()
-
-    def dropEvent(self, event):
-        # Get the dropped file path
-        if self.packConrols.packCreated == True:
-            for file in event.mimeData().urls():
-                self.paintingEditor.file_path_stack.append(file)
-            self.paintingEditor.init_stack_count = len(self.paintingEditor.file_path_stack)
-            self.getNextImage()
-        else:
-            QMessageBox.information(self, "Pack not Created", f"Please create a pack before importing images.")
-
-    def prog_help(self):
-        dialog = HelpDialog(self)
-        dialog.exec_()
+            print(item, "Exists")
 
 
 def set_theme(app):
