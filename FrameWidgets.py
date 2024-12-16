@@ -8,6 +8,7 @@ from ResourcePackBuilder import ResourcePackBuilder
 from pathlib import Path
 from io import BytesIO
 from PIL import Image
+import requests
 import json
 import sys
 import os
@@ -19,9 +20,9 @@ class ViewPort(QGraphicsView):
         self.displayingImage = False
         self.current_zoom = 0.4 # start zoom
         self.minZoom = 0.1
-        self.maxZoom = 3.0 
+        self.maxZoom = 3.0
         self.setAcceptDrops(True)
-    
+
     def wheelEvent(self, event: QWheelEvent):
         # Get the wheel delta (positive for scrolling up, negative for scrolling down)
         angle_delta = event.angleDelta().y()
@@ -33,18 +34,18 @@ class ViewPort(QGraphicsView):
         else:
             # Zoom out
             zoom = max(self.current_zoom / factor, self.minZoom)
-            
+
         self.parent.view_slider.setValue(int(zoom * 100))
         event.accept()  # Mark the event as handled
-    
+
     def setZoom(self, zoom):
         if self.displayingImage:
             self.resetTransform()
             self.scale(zoom , zoom)
         #print(zoom)
         self.current_zoom = zoom
-        
-    
+
+
     def loadImage(self, pixmap):
         self.displayingImage = True
         self.setZoom(self.current_zoom)
@@ -93,14 +94,14 @@ class ViewPort(QGraphicsView):
         self.parent.dropEvent(event)
 
 class PaintingEditor(QWidget):
-    
+
     def __init__(self, parent):
         super().__init__(parent)
-        
+
         # This is very OOP thus its ok and cool
         self.parent = parent
         self.packConrols = self.parent.packConrols
-        
+
         init_silder_value = 500
         self.view_size = int(100 + (init_silder_value / 500) * 300)
 
@@ -113,7 +114,7 @@ class PaintingEditor(QWidget):
         self.lock = True
         self.updating = False
         self.backgroundColor = "#000000"
-        
+
         PaintingEditor_Layout = QVBoxLayout()
         combine_OptionsViewport = QHBoxLayout()
         """Options Pane"""
@@ -256,7 +257,7 @@ class PaintingEditor(QWidget):
         self.view_size = 400
 
     def view_slider_changed(self):
-        zoom = self.view_slider.value() / 100 
+        zoom = self.view_slider.value() / 100
         self.viewPort.setZoom(zoom)
 
     def setButtonEnabled(self, value):

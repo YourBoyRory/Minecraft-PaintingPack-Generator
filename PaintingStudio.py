@@ -1,7 +1,6 @@
 import os
 import json
 import sys
-import requests
 from pathlib import Path
 from PyQt5.QtCore import Qt, QUrl, QSize, QTimer, QStringListModel, pyqtSignal
 from PyQt5.QtGui import QPixmap, QImage, QIcon, QColor, QFont
@@ -28,11 +27,11 @@ class PaintingStudio(QMainWindow):
         # generated stuff
         self.setWindowTitle("Minecraft Painting Studio")
         self.setGeometry(100, 100, 1000, 600)
-        
-        
+
+
         """Menu Bar"""
         menubar = self.menuBar()
-        
+
         #File Menu
         file_menu = menubar.addMenu('File')
         new_pack_action = QAction('New Pack', self)
@@ -44,7 +43,7 @@ class PaintingStudio(QMainWindow):
         self.save_draft_action = QAction('Save Draft', self)
         self.save_draft_action.triggered.connect(self.saveToFile)
         file_menu.addAction(self.save_draft_action)
-        
+
         # Help Menu
         help_menu = menubar.addMenu('Help')
         help_action = QAction('Help', self)
@@ -53,7 +52,7 @@ class PaintingStudio(QMainWindow):
 
         """ Left Bar """
         self.packConrols = PackControls(self)
-        
+
         """Center Widget"""
         self.paintingEditor = PaintingEditor(self)
 
@@ -75,7 +74,7 @@ class PaintingStudio(QMainWindow):
     def newPack(self):
         # Create and show the input dialog
         dialog = InputDialog(self)
-        
+
         # Check if the dialog was accepted
         if dialog.exec_() == QDialog.Accepted:
             title, description, number, icon = dialog.get_data()
@@ -154,7 +153,6 @@ def set_theme(app):
     except:
         pass
     current_style = app.style().objectName()
-    desktop = ""
     if desktop == "" or current_style == "windowsvista":
         desktop = "windows"
         try:
