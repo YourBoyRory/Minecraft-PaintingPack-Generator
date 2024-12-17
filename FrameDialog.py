@@ -58,6 +58,7 @@ class BatchEditDialog(QDialog):
 
         """Color"""
         color_layout = QHBoxLayout()
+        self.color = "#000000"
         # CheckBox
         color_enable = QCheckBox()
         color_layout.addWidget(color_enable)
@@ -68,10 +69,48 @@ class BatchEditDialog(QDialog):
         color_layout.addWidget(self.color_button)
         layout.addRow("Background Color:", color_layout)
 
+        button_layout = QHBoxLayout()
+        self.submit_button = QPushButton("Submit")
+        self.submit_button.setEnabled(False)
+        self.submit_button.clicked.connect(self.submit)
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.reject)
+        button_layout.addWidget(self.submit_button)
+        button_layout.addWidget(self.cancel_button)
+        layout.addRow(button_layout)
+
         self.setLayout(layout)
 
     def setEnable(self, state, settingObj):
         settingObj.setEnabled(state)
+        if (self.detail_spin_box.isEnabled()
+        or self.scale_combo_box.isEnabled()
+        or self.frame_combo_box.isEnabled()
+        or self.color_button.isEnabled()):
+            self.submit_button.setEnabled(True)
+        else:
+            self.submit_button.setEnabled(False)
+
+    def submit(self):
+        print(self.get_data())
+        self.accept()
+
+    def get_data(self):
+        data = {
+            'detail': False,
+            'scale_method': False,
+            'frame': False,
+            'background_color': False
+        }
+        if self.detail_spin_box.isEnabled():
+            data['detail'] = self.detail_spin_box.value()
+        if  self.scale_combo_box.isEnabled():
+            data['scale_method'] = self.detail_spin_box.value()
+        if self.frame_combo_box.isEnabled():
+            data['frame'] = self.frame_combo_box.currentText()
+        if self.color_button.isEnabled():
+            data['background_color'] = self.color
+        return data
 
 class HelpDialog(QDialog):
     def __init__(self, parent):
@@ -136,8 +175,8 @@ class InputDialog(QDialog):
         self.title_input = QLineEdit("PaintingPack")
         self.description_input = QLineEdit("My Painting Pack")
         self.number_input = QSpinBox()
-        self.number_input.setValue(46)
-        self.number_input.setRange(0, 100)  # Set the range for the spinner
+        self.number_input.setValue(46)      # Most up to date pact format as of relase
+        self.number_input.setRange(4, 256)  # Surely they add more paintings before Format 256
         packFormatLayout.addWidget(self.number_input)
         self.packFormatLink = QPushButton("Help")
         packFormatLayout.addWidget(self.packFormatLink)

@@ -13,6 +13,13 @@ from ResourcePackBuilder import ResourcePackBuilder
 from FrameDialog import LoadingDialog, InputDialog, HelpDialog, BatchEditDialog
 from FrameWidgets import PackControls, PaintingEditor
 
+def ResourcePath(folder, file):
+    if getattr(sys, 'frozen', False):
+        base_path = sys._MEIPASS
+    else:
+        base_path = os.path.dirname(__file__)
+    return os.path.join(base_path, folder, file)
+
 class PaintingStudio(QMainWindow):
 
     def __init__(self):
@@ -26,6 +33,7 @@ class PaintingStudio(QMainWindow):
 
         # generated stuff
         self.setWindowTitle("Minecraft Painting Studio")
+        self.setWindowIcon(QIcon(ResourcePath("assets", "icon.png")))
         self.setGeometry(100, 100, 1000, 600)
 
 
@@ -141,13 +149,6 @@ class PaintingStudio(QMainWindow):
         if self.paintingEditor.size_combo_box.findText(item) == -1:
             self.paintingEditor.size_combo_box.addItem(item)
 
-def resource_path(file):
-    if getattr(sys, 'frozen', False):
-        base_path = sys._MEIPASS
-    else:
-        base_path = os.path.dirname(__file__)
-    return os.path.join(base_path, 'styles', file)
-
 def set_theme(app):
     desktop = ""
     try:
@@ -164,7 +165,7 @@ def set_theme(app):
     if desktop == "" or current_style == "windowsvista":
         desktop = "windows"
         try:
-            with open(resource_path("Adwaita-Dark.qss"), "r") as f:
+            with open(ResourcePath("styles", "Adwaita-Dark.qss"), "r") as f:
                 app.setStyleSheet(f.read())
         except:
             print("Failed to load darkmode")
