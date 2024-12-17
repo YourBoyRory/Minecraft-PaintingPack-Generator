@@ -4,14 +4,24 @@ from PyQt5.QtWidgets import QScrollArea, QSlider, QMainWindow, QMessageBox, QMen
 from PyQt5.QtWidgets import QApplication, QStyleFactory, QProgressBar, QSpacerItem, QCheckBox
 import webbrowser
 
+class SaveChangesDialog():
+    def __init__(self, parent, changesSaved):
+        self.reply = QMessageBox.No
+        if not changesSaved:
+            self.reply = QMessageBox.question(parent, 'Changes Unsaved', 'Do you want save the the current pack as a draft for future editing?', QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel, QMessageBox.Cancel)
+    
+    def getReply(self):        
+        return self.reply
+
 class BatchEditDialog(QDialog):
     def __init__(self, parent):
         super().__init__(parent)
+        self.parent = parent
         self.setWindowTitle("Batch Edit")
         self.setModal(True)
         self.setObjectName("Frame")
         layout = QFormLayout()
-
+        
         layout.addRow(QLabel("Change settings for all paintings in pack.\n"))
 
         """Detail"""
@@ -23,7 +33,6 @@ class BatchEditDialog(QDialog):
         self.detail_spin_box = QSpinBox(self)
         self.detail_spin_box.setRange(1, 16)  # Set the valid range (1 to 100)
         self.detail_spin_box.setValue(1)  # Set the initial value
-        #self.detail_spin_box.valueChanged.connect(self.requestViewPortDraw)
         self.detail_spin_box.setEnabled(False)
         detail_enable.stateChanged.connect(lambda state: self.setEnable(state, self.detail_spin_box))
         detail_layout.addWidget(self.detail_spin_box)
@@ -58,12 +67,13 @@ class BatchEditDialog(QDialog):
 
         """Color"""
         color_layout = QHBoxLayout()
-        self.color = "#000000"
+        self.backgroundColor = "#000000"
         # CheckBox
         color_enable = QCheckBox()
         color_layout.addWidget(color_enable)
         # Combo box
         self.color_button = QPushButton("Choose")
+        self.color_button.clicked.connect(self.showColorDialog)
         self.color_button.setEnabled(False)
         color_enable.stateChanged.connect(lambda state: self.setEnable(state, self.color_button))
         color_layout.addWidget(self.color_button)
@@ -92,25 +102,44 @@ class BatchEditDialog(QDialog):
             self.submit_button.setEnabled(False)
 
     def submit(self):
-        print(self.get_data())
-        self.accept()
+        data = self.get_data()
+        settings = ""
+        if data['detail'] != False:
+            settings += f"    Detail: {data['detail']}\n"
+        if  data['scale_method'] != False:
+            settings += f"    Scale Method: {data['scale_method']}\n"
+        if data['frameName'] != False:
+            settings += f"    Frame: {data['frameName']}\n"
+        if data['background_color'] != False:
+            settings += f"    Background Color: {data['background_color']}\n"
+        reply = QMessageBox.question(self.parent, 'Submit Batch Job?', f'This will apply the following settings to every painting in the pack:\n\n{settings}\nThis cannot be undone. Do you wish to continue?', QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            self.accept()
 
     def get_data(self):
         data = {
             'detail': False,
             'scale_method': False,
-            'frame': False,
+            'frameName': False,
             'background_color': False
         }
         if self.detail_spin_box.isEnabled():
             data['detail'] = self.detail_spin_box.value()
         if  self.scale_combo_box.isEnabled():
-            data['scale_method'] = self.detail_spin_box.value()
+            data['scale_method'] = self.scale_combo_box.currentText()
         if self.frame_combo_box.isEnabled():
-            data['frame'] = self.frame_combo_box.currentText()
+            data['frameName'] = self.frame_combo_box.currentText()
         if self.color_button.isEnabled():
-            data['background_color'] = self.color
+            data['background_color'] = self.backgroundColor
         return data
+
+    def showColorDialog(self):
+        # Open the QColorDialog
+        color = QColorDialog.getColor(QColor(self.backgroundColor))
+        if color.isValid():
+            # Update the label with the chosen color
+            self.backgroundColor = color.name()
+        self.requestViewPortDraw()
 
 class HelpDialog(QDialog):
     def __init__(self, parent):
@@ -173,10 +202,12 @@ class InputDialog(QDialog):
 
         # Create input fields
         self.title_input = QLineEdit("PaintingPack")
+        self.title_input.textChanged.connect(self.feild_validation)
         self.description_input = QLineEdit("My Painting Pack")
+        self.description_input.textChanged.connect(self.feild_validation)
         self.number_input = QSpinBox()
         self.number_input.setValue(46)      # Most up to date pact format as of relase
-        self.number_input.setRange(4, 256)  # Surely they add more paintings before Format 256
+        self.number_input.setRange(4, 65535)  # Surely they add more paintings before Format 65535
         packFormatLayout.addWidget(self.number_input)
         self.packFormatLink = QPushButton("Help")
         packFormatLayout.addWidget(self.packFormatLink)
@@ -204,7 +235,7 @@ class InputDialog(QDialog):
 
         # Connect buttons to functions
         self.packFormatLink.clicked.connect(self.packFormat_Info)
-        self.ok_button.clicked.connect(self.on_ok_button_clicked)
+        self.ok_button.clicked.connect(self.accept)
         self.cancel_button.clicked.connect(self.reject)
 
     def packFormat_Info(self):
@@ -214,12 +245,11 @@ class InputDialog(QDialog):
         # Return the data entered by the user
         return self.title_input.text(), self.description_input.text(), self.number_input.value(), self.icon
 
-    def on_ok_button_clicked(self):
-        # Validate required fields before accepting the form
+    def feild_validation(self):
         if not self.title_input.text().strip() or not self.description_input.text().strip():
-            QMessageBox.information(self, "Pack not Created", "You need a Title and Description")
+            self.ok_button.setEnabled(False)
         else:
-            self.accept()  # Proceed with accepting the form if validation passes
+            self.ok_button.setEnabled(True)
 
     def setIcon(self):
         lastText = self.iconButton.text()

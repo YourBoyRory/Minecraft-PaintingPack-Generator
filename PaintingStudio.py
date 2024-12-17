@@ -10,7 +10,7 @@ from io import BytesIO
 from PIL import Image
 from PaintingGenerator import PaintingGenerator
 from ResourcePackBuilder import ResourcePackBuilder
-from FrameDialog import LoadingDialog, InputDialog, HelpDialog, BatchEditDialog
+from FrameDialog import LoadingDialog, InputDialog, HelpDialog, BatchEditDialog, SaveChangesDialog
 from FrameWidgets import PackControls, PaintingEditor
 
 def ResourcePath(folder, file):
@@ -53,9 +53,9 @@ class PaintingStudio(QMainWindow):
         file_menu.addAction(self.save_draft_action)
 
         tool_menu = menubar.addMenu('Tools')
-        batch_edit_action = QAction('Batch Edit', self)
-        batch_edit_action.triggered.connect(self.batchEdit)
-        tool_menu.addAction(batch_edit_action)
+        self.batch_edit_action = QAction('Batch Edit', self)
+        self.batch_edit_action.triggered.connect(self.batchEdit)
+        tool_menu.addAction(self.batch_edit_action)
 
         # Help Menu
         help_menu = menubar.addMenu('Help')
@@ -78,17 +78,53 @@ class PaintingStudio(QMainWindow):
         self.setButtonEnabled(False)
         #self.setAcceptDrops(True)
 
+    ## Frame Code ##
+    
+    def closeEvent(self, event):
+        dialog = SaveChangesDialog(self, self.packConrols.changesSaved)
+        reply = dialog.getReply()
+        if reply == QMessageBox.Yes:
+            self.saveToFile()
+            event.accept()
+        elif reply == QMessageBox.No:
+            event.accept()
+        else:
+            event.ignore()
+
     ## Menu Bar ##
 
     def batchEdit(self):
         dialog = BatchEditDialog(self)
-        dialog.exec_()
+        if dialog.exec_() == QDialog.Accepted:
+            data = dialog.get_data()
+            new_draft = self.packConrols.used_paintings
+            for painting in new_draft:
+                if data['detail'] != False:
+                    new_draft[painting]['detail'] = data['detail']
+                if  data['scale_method'] != False:
+                    new_draft[painting]['scale_method'] = data['scale_method']
+                if data['frameName'] != False:
+                    new_draft[painting]['frameName'] = data['frameName']
+                if data['background_color'] != False:
+                    new_draft[painting]['background_color'] = data['background_color']
+            self.packConrols.loadDraft(new_draft)
+           
 
     def prog_help(self):
         dialog = HelpDialog(self)
         dialog.exec_()
 
     def newPack(self):
+        dialog = SaveChangesDialog(self, self.packConrols.changesSaved)
+        reply = dialog.getReply()
+        if reply == QMessageBox.Yes:
+            self.saveToFile()
+            pass
+        elif reply == QMessageBox.No:
+            pass
+        else:
+            return
+        
         # Create and show the input dialog
         dialog = InputDialog(self)
 
@@ -106,19 +142,30 @@ class PaintingStudio(QMainWindow):
             }
             self.packConrols.setPackInfo(title, packMeta, icon)
 
-    # Wrappers
+    ## Wrappers ##
+    
     def reset(self):
         self.paintingEditor.reset()
 
     def setButtonEnabled(self, value):
         listFull = self.packConrols.updateButtonEnabled()
         self.save_draft_action.setEnabled(listFull)
+        self.batch_edit_action.setEnabled(listFull)
         self.packConrols.add_button.setEnabled(value)
         self.paintingEditor.setButtonEnabled(value)
         return
 
     def loadFromFile(self):
-        self.packConrols.loadDraft()
+        dialog = SaveChangesDialog(self,self.packConrols.changesSaved)
+        reply = dialog.getReply()
+        if reply == QMessageBox.Yes:
+            self.saveToFile()
+            pass
+        elif reply == QMessageBox.No:
+            pass
+        else:
+            return
+        self.packConrols.openDraft()
 
     def saveToFile(self):
         self.packConrols.saveDraft()

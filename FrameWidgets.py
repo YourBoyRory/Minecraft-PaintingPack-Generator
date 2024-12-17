@@ -467,6 +467,7 @@ class PackControls(QWidget):
         self.parent = parent
 
         self.packCreated = False
+        self.changesSaved = True
         self.used_paintings = {}
         PackConrols_layout = QVBoxLayout()
 
@@ -556,6 +557,7 @@ class PackControls(QWidget):
         self.reset()
 
     def removeImage(self, item):
+        self.changesSaved = False
         try:
             name = item.text().split()[0].lower()
             size = item.text().split()[1].replace("(", "").replace(")", "")
@@ -575,6 +577,7 @@ class PackControls(QWidget):
             self.parent.save_draft_action.setEnabled(True)
 
     def editImage(self, item):
+        self.changesSaved = False
         try:
             name = item.text().split()[0].lower()
             size = item.text().split()[1].replace("(", "").replace(")", "")
@@ -598,6 +601,7 @@ class PackControls(QWidget):
 
 
     def writeImage(self):
+        self.changesSaved = False
         #self.parent.lock = True # Lock UI
 
         # Get the image data
@@ -631,35 +635,42 @@ class PackControls(QWidget):
             self.pack_builder.writePack(file)
             QMessageBox.information(self, "Pack Saved", f"Resource Pack saved to\n{file}")
 
-    def loadDraft(self):
-        dialog = LoadingDialog(self)
+    def openDraft(self):
         file_name, _ = QFileDialog.getOpenFileName(self, 'Load Draft', '', 'PaintingStudio Draft (*.json)')
         if file_name:
-            self.reset()
-            self.parent.reset()
             with open(file_name) as f:
                 loaded_paintings = json.load(f)
-            i=1
-            dialog.show_loading(len(loaded_paintings))
-            self.lock = False
-            for paintingName in loaded_paintings:
-                self.used_paintings[paintingName] = loaded_paintings[paintingName]
-                paintingMetaData = loaded_paintings[paintingName]
-                self.used_paintings.pop(paintingName, None)
-                self.parent.setCurrentData(paintingName, paintingMetaData)
-                self.parent.setCurrentImage(paintingMetaData['file_path'])
-                self.parent.setCurrentData(paintingName, paintingMetaData)
-                QApplication.processEvents()
-                self.writeImage()
-                dialog.update_progress_signal.emit(i)
-                i+=1
-            dialog.close_dialog()
+            self.loadDraft(loaded_paintings)
+            self.changesSaved = True
+
+
+    def loadDraft(self, loaded_paintings):
+        self.changesSaved = False
+        dialog = LoadingDialog(self)
+        i=1
+        self.reset()
+        self.parent.reset()
+        dialog.show_loading(len(loaded_paintings))
+        self.lock = False
+        for paintingName in loaded_paintings:
+            self.used_paintings[paintingName] = loaded_paintings[paintingName]
+            paintingMetaData = loaded_paintings[paintingName]
+            self.used_paintings.pop(paintingName, None)
+            self.parent.setCurrentData(paintingName, paintingMetaData)
+            self.parent.setCurrentImage(paintingMetaData['file_path'])
+            self.parent.setCurrentData(paintingName, paintingMetaData)
+            QApplication.processEvents()
+            self.writeImage()
+            dialog.update_progress_signal.emit(i)
+            i+=1
+        dialog.close_dialog()
 
     def saveDraft(self, file=None):
         options = QFileDialog.Options()
         if file == None:
             file, _ = QFileDialog.getSaveFileName(self, "Save Draft", f"{self.packName}.json", "PaintingStudio Draft (*.json)", options=options)
         if file:
+            self.changesSaved = True
             with open(file, "w") as fp:
                 json.dump(self.used_paintings, fp)
             QMessageBox.information(self, "Draft Saved", f"Draft saved to\n{file}")
