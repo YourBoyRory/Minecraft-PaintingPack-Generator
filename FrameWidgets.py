@@ -8,6 +8,7 @@ from ResourcePackBuilder import ResourcePackBuilder
 from pathlib import Path
 from io import BytesIO
 from PIL import Image
+import platform
 import requests
 import json
 import sys
@@ -629,14 +630,25 @@ class PackControls(QWidget):
         self.parent.getNextImage()
 
     def exportPack(self):
-        options = QFileDialog.Options()
-        file, _ = QFileDialog.getSaveFileName(self, "Save Resource Pack", f"{self.packName}.zip", "MC Resource Pack (*.zip);;All Files (*)", options=options)
+        try:
+            if platform.system() == 'Windows':
+                base = os.getenv('APPDATA')
+            elif platform.system() == 'Linux':
+                base = os.getenv('HOME')
+            initial_directory = os.path.join(base, '.minecraft', 'resourcepacks')
+            if not Path(initial_directory).exists():
+                initial_directory = os.path.join(os.path.expanduser("~"), "Documents")
+        except:
+            initial_directory = os.path.join(os.path.expanduser("~"), "Documents")
+        directory = os.path.join(initial_directory, f"{self.packName}.zip")
+        file, _ = QFileDialog.getSaveFileName(self.parent, "Save Resource Pack", directory, "MC Resource Pack (*.zip);;All Files (*)")
         if file:
             self.pack_builder.writePack(file)
             QMessageBox.information(self, "Pack Saved", f"Resource Pack saved to\n{file}")
 
     def openDraft(self):
-        file_name, _ = QFileDialog.getOpenFileName(self, 'Load Draft', '', 'PaintingStudio Draft (*.json)')
+        directory = os.path.join(os.path.expanduser("~"), "Documents")
+        file_name, _ = QFileDialog.getOpenFileName(self.parent, 'Load Draft', directory, 'PaintingStudio Draft (*.json)')
         if file_name:
             with open(file_name) as f:
                 loaded_paintings = json.load(f)
@@ -666,9 +678,9 @@ class PackControls(QWidget):
         dialog.close_dialog()
 
     def saveDraft(self, file=None):
-        options = QFileDialog.Options()
+        directory = os.path.join(os.path.expanduser("~"), "Documents", f"{self.packName}.json")
         if file == None:
-            file, _ = QFileDialog.getSaveFileName(self, "Save Draft", f"{self.packName}.json", "PaintingStudio Draft (*.json)", options=options)
+            file, _ = QFileDialog.getSaveFileName(self.parent, "Save Draft", directory, "PaintingStudio Draft (*.json)")
         if file:
             self.changesSaved = True
             with open(file, "w") as fp:

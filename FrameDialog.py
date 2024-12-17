@@ -1,16 +1,19 @@
 from PyQt5.QtCore import Qt, QUrl, QSize, QTimer, QStringListModel, pyqtSignal
 from PyQt5.QtGui import QPixmap, QImage, QIcon, QColor, QFont
 from PyQt5.QtWidgets import QScrollArea, QSlider, QMainWindow, QMessageBox, QMenuBar, QDialog, QColorDialog, QFormLayout, QLineEdit, QMenu, QAction, QListWidgetItem, QListWidget, QTabWidget, QApplication, QWidget, QVBoxLayout, QComboBox, QLabel, QFrame, QHBoxLayout, QFileDialog, QSizePolicy, QSpinBox, QPushButton
-from PyQt5.QtWidgets import QApplication, QStyleFactory, QProgressBar, QSpacerItem, QCheckBox
+from PyQt5.QtWidgets import QApplication, QStyleFactory, QProgressBar, QSpacerItem, QCheckBox, QTextBrowser
 import webbrowser
+import json
+import sys
+import os
 
 class SaveChangesDialog():
     def __init__(self, parent, changesSaved):
         self.reply = QMessageBox.No
         if not changesSaved:
             self.reply = QMessageBox.question(parent, 'Changes Unsaved', 'Do you want save the the current pack as a draft for future editing?', QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel, QMessageBox.Cancel)
-    
-    def getReply(self):        
+
+    def getReply(self):
         return self.reply
 
 class BatchEditDialog(QDialog):
@@ -21,7 +24,7 @@ class BatchEditDialog(QDialog):
         self.setModal(True)
         self.setObjectName("Frame")
         layout = QFormLayout()
-        
+
         layout.addRow(QLabel("Change settings for all paintings in pack.\n"))
 
         """Detail"""
@@ -141,15 +144,34 @@ class BatchEditDialog(QDialog):
             self.backgroundColor = color.name()
         self.requestViewPortDraw()
 
-class HelpDialog():
+class HelpDialog(QDialog):
     def __init__(self, parent):
-        webbrowser.open_new_tab("help.html")
-    def resource_path(self, file):
+        super().__init__(parent)
+        self.setWindowTitle('Help')
+        self.setMinimumHeight(400)
+        self.setMinimumWidth(600)
+        layout = QVBoxLayout(self)
+        self.tab_widget = QTabWidget(self)
+        with open(self.resourcePath('src', 'help.json'), 'r') as file:
+            help_pages = json.load(file)
+        for page in help_pages:
+            self.addPage(page, help_pages[page])
+        layout.addWidget(self.tab_widget)
+        self.setLayout(layout)
+
+    def addPage(self, page_name, html):
+        content = QTextBrowser()
+        content.setOpenLinks(True)
+        content.setOpenExternalLinks(True)
+        content.setHtml(html)
+        self.tab_widget.addTab(content, page_name)
+
+    def resourcePath(self, folder, file):
         if getattr(sys, 'frozen', False):
             base_path = sys._MEIPASS
         else:
             base_path = os.path.dirname(__file__)
-        return os.path.join(base_path, 'src', file)
+        return os.path.join(base_path, folder, file)
 
 class LoadingDialog(QDialog):
     # Define a signal to update progress
