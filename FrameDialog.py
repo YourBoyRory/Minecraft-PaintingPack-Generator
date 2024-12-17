@@ -141,15 +141,15 @@ class BatchEditDialog(QDialog):
             self.backgroundColor = color.name()
         self.requestViewPortDraw()
 
-class HelpDialog(QDialog):
+class HelpDialog():
     def __init__(self, parent):
-        super().__init__(parent)
-        self.setWindowTitle("Help")
-        self.setModal(True)
-        self.setObjectName("Frame")
-        self.setFixedSize(300, 100)
-        layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("WIP"))
+        webbrowser.open_new_tab("help.html")
+    def resource_path(self, file):
+        if getattr(sys, 'frozen', False):
+            base_path = sys._MEIPASS
+        else:
+            base_path = os.path.dirname(__file__)
+        return os.path.join(base_path, 'src', file)
 
 class LoadingDialog(QDialog):
     # Define a signal to update progress
