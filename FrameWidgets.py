@@ -24,6 +24,9 @@ class ViewPort(QGraphicsView):
         self.setAcceptDrops(True)
 
     def wheelEvent(self, event: QWheelEvent):
+        if not self.parent.view_slider.isEnabled():
+            event.ignore()
+            return
         # Get the wheel delta (positive for scrolling up, negative for scrolling down)
         angle_delta = event.angleDelta().y()
         factor = 1.2

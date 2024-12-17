@@ -10,7 +10,7 @@ from io import BytesIO
 from PIL import Image
 from PaintingGenerator import PaintingGenerator
 from ResourcePackBuilder import ResourcePackBuilder
-from FrameDialog import LoadingDialog, InputDialog, HelpDialog
+from FrameDialog import LoadingDialog, InputDialog, HelpDialog, BatchEditDialog
 from FrameWidgets import PackControls, PaintingEditor
 
 class PaintingStudio(QMainWindow):
@@ -44,6 +44,11 @@ class PaintingStudio(QMainWindow):
         self.save_draft_action.triggered.connect(self.saveToFile)
         file_menu.addAction(self.save_draft_action)
 
+        tool_menu = menubar.addMenu('Tools')
+        batch_edit_action = QAction('Batch Edit', self)
+        batch_edit_action.triggered.connect(self.batchEdit)
+        tool_menu.addAction(batch_edit_action)
+
         # Help Menu
         help_menu = menubar.addMenu('Help')
         help_action = QAction('Help', self)
@@ -66,6 +71,10 @@ class PaintingStudio(QMainWindow):
         #self.setAcceptDrops(True)
 
     ## Menu Bar ##
+
+    def batchEdit(self):
+        dialog = BatchEditDialog(self)
+        dialog.exec_()
 
     def prog_help(self):
         dialog = HelpDialog(self)
@@ -90,7 +99,6 @@ class PaintingStudio(QMainWindow):
             self.packConrols.setPackInfo(title, packMeta, icon)
 
     # Wrappers
-
     def reset(self):
         self.paintingEditor.reset()
 
