@@ -594,28 +594,32 @@ class PackControls(QWidget):
             self.parent.save_draft_action.setEnabled(True)
 
     def editImage(self, item):
-        self.changesSaved = False
         try:
             name = item.text().split()[0].lower()
             size = item.text().split()[1].replace("(", "").replace(")", "")
         except Exception as e:
             print(f"Failed to edit image: {str(e)}")
             return
-        self.pack_builder.delFile(f"assets/minecraft/textures/painting/{name}.png")
-        self.listwidget.takeItem(self.listwidget.row(item))
-        self.parent.addToComboBox(size)
-        if self.listwidget.count() == 0:
-            self.export_button.setEnabled(False)
-            self.parent.save_draft_action.setEnabled(False)
-        else:
-            self.export_button.setEnabled(True)
         paintingMetaData = self.used_paintings[name]
-        self.used_paintings.pop(name, None)
-        self.parent.updateComboBox()
-        self.parent.setCurrentImage(paintingMetaData['file_path'])
-        self.parent.setCurrentData(name, paintingMetaData)
-        self.parent.setLockStatus(False)
-        self.parent.requestViewPortDraw()
+        try:
+            self.changesSaved = False
+            self.pack_builder.delFile(f"assets/minecraft/textures/painting/{name}.png")
+            self.listwidget.takeItem(self.listwidget.row(item))
+            self.parent.addToComboBox(size)
+            if self.listwidget.count() == 0:
+                self.export_button.setEnabled(False)
+                self.parent.save_draft_action.setEnabled(False)
+            else:
+                self.export_button.setEnabled(True)
+            self.used_paintings.pop(name, None)
+            self.parent.updateComboBox()
+            self.parent.setCurrentImage(paintingMetaData['file_path'])
+            self.parent.setCurrentData(name, paintingMetaData)
+            self.parent.setLockStatus(False)
+            self.parent.requestViewPortDraw()
+        except:
+            path = paintingMetaData['file_path']
+            QMessageBox.information(self, "File Read Error", f"File no longer readable.\n{path}\n\nThe file may not have the correct permission or is missing.")
 
 
     def writeImage(self):
@@ -668,11 +672,14 @@ class PackControls(QWidget):
         if not file_name:
             file_name, _ = QFileDialog.getOpenFileName(self.parent, 'Load Draft', directory, 'PaintingStudio Draft (*.json)')
         if file_name:
-            with open(file_name) as f:
-                loaded_paintings = json.load(f)
-            self.loadDraft(loaded_paintings)
-            self.saveFile = file_name
-            self.changesSaved = True
+            try:
+                with open(file_name) as f:
+                    loaded_paintings = json.load(f)
+                self.loadDraft(loaded_paintings)
+                self.saveFile = file_name
+                self.changesSaved = True
+            except:
+                QMessageBox.warning(self, "Draft Read Error", f"Could not parse the draft file, it may have been made in a older version or is currupted.")
 
 
     def loadDraft(self, loaded_paintings):
@@ -683,17 +690,29 @@ class PackControls(QWidget):
         self.parent.reset()
         dialog.show_loading(len(loaded_paintings))
         self.lock = False
+        failedPaintings = ""
+        failedCount = 0
         for paintingName in loaded_paintings:
-            self.used_paintings[paintingName] = loaded_paintings[paintingName]
             paintingMetaData = loaded_paintings[paintingName]
-            self.used_paintings.pop(paintingName, None)
-            self.parent.setCurrentData(paintingName, paintingMetaData)
-            self.parent.setCurrentImage(paintingMetaData['file_path'])
-            self.parent.setCurrentData(paintingName, paintingMetaData)
-            QApplication.processEvents()
-            self.writeImage()
-            dialog.update_progress_signal.emit(i)
-            i+=1
+            try:
+                self.used_paintings[paintingName] = loaded_paintings[paintingName]
+                self.used_paintings.pop(paintingName, None)
+                self.parent.setCurrentData(paintingName, paintingMetaData)
+                self.parent.setCurrentImage(paintingMetaData['file_path'])
+                self.parent.setCurrentData(paintingName, paintingMetaData)
+                QApplication.processEvents()
+                self.writeImage()
+                dialog.update_progress_signal.emit(i)
+                i+=1
+            except:
+                if failedCount < 4:
+                    path = paintingMetaData['file_path']
+                    failedPaintings += f"    {path}\n"
+                failedCount += 1
+        if failedPaintings != "":
+            if failedCount > 4:
+                failedPaintings += f"    And {failedCount-4} more...\n"
+            QMessageBox.warning(self, "File Read Error", f"The following files are no longer readable:\n{failedPaintings}\nThey may not have the correct permission or are missing.")
         dialog.close_dialog()
 
     def saveDraft(self, file=False):
