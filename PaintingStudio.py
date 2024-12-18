@@ -3,9 +3,9 @@ import json
 import sys
 from pathlib import Path
 from PyQt5.QtCore import Qt, QUrl, QSize, QTimer, QStringListModel, pyqtSignal
-from PyQt5.QtGui import QPixmap, QImage, QIcon, QColor, QFont
+from PyQt5.QtGui import QPixmap, QImage, QIcon, QColor, QFont, QKeySequence
 from PyQt5.QtWidgets import QScrollArea, QSlider, QMainWindow, QMessageBox, QMenuBar, QDialog, QColorDialog, QFormLayout, QLineEdit, QMenu, QAction, QListWidgetItem, QListWidget, QTabWidget, QApplication, QWidget, QVBoxLayout, QComboBox, QLabel, QFrame, QHBoxLayout, QFileDialog, QSizePolicy, QSpinBox, QPushButton
-from PyQt5.QtWidgets import QApplication, QStyleFactory, QProgressBar
+from PyQt5.QtWidgets import QApplication, QStyleFactory, QProgressBar, QShortcut
 from io import BytesIO
 from PIL import Image
 from PaintingGenerator import PaintingGenerator
@@ -48,8 +48,11 @@ class PaintingStudio(QMainWindow):
         open_draft_action = QAction('Open Draft', self)
         open_draft_action.triggered.connect(self.loadFromFile)
         file_menu.addAction(open_draft_action)
-        self.save_draft_action = QAction('Save Draft', self)
-        self.save_draft_action.triggered.connect(self.saveToFile)
+        self.save_draft_as_action = QAction('Save Draft As', self)
+        self.save_draft_as_action.triggered.connect(self.saveToFile)
+        file_menu.addAction(self.save_draft_as_action)
+        self.save_draft_action = QAction('Save', self)
+        self.save_draft_action.triggered.connect(self.saveExisting)
         file_menu.addAction(self.save_draft_action)
 
         tool_menu = menubar.addMenu('Tools')
@@ -74,12 +77,15 @@ class PaintingStudio(QMainWindow):
         layout.addWidget(self.packConrols)
         self.setLayout(layout)
 
+        self.saveShortcut = QShortcut(QKeySequence("Ctrl+S"), self)
+        self.saveShortcut.activated.connect(self.saveExisting)
+
         # Set the whole window to accept drops
         self.setButtonEnabled(False)
         #self.setAcceptDrops(True)
 
     ## Frame Code ##
-    
+
     def closeEvent(self, event):
         dialog = SaveChangesDialog(self, self.packConrols.changesSaved)
         reply = dialog.getReply()
@@ -104,11 +110,14 @@ class PaintingStudio(QMainWindow):
                 if  data['scale_method'] != False:
                     new_draft[painting]['scale_method'] = data['scale_method']
                 if data['frameName'] != False:
-                    new_draft[painting]['frameName'] = data['frameName']
+                    if data['frameName'] == "Default":
+                        new_draft[painting]['frameName'] = painting
+                    else:
+                        new_draft[painting]['frameName'] = "None"
                 if data['background_color'] != False:
                     new_draft[painting]['background_color'] = data['background_color']
             self.packConrols.loadDraft(new_draft)
-           
+
 
     def prog_help(self):
         dialog = HelpDialog(self)
@@ -124,7 +133,7 @@ class PaintingStudio(QMainWindow):
             pass
         else:
             return
-        
+
         # Create and show the input dialog
         dialog = InputDialog(self)
 
@@ -143,12 +152,13 @@ class PaintingStudio(QMainWindow):
             self.packConrols.setPackInfo(title, packMeta, icon)
 
     ## Wrappers ##
-    
+
     def reset(self):
         self.paintingEditor.reset()
 
     def setButtonEnabled(self, value):
         listFull = self.packConrols.updateButtonEnabled()
+        self.save_draft_as_action.setEnabled(listFull)
         self.save_draft_action.setEnabled(listFull)
         self.batch_edit_action.setEnabled(listFull)
         self.packConrols.add_button.setEnabled(value)
@@ -169,6 +179,14 @@ class PaintingStudio(QMainWindow):
 
     def saveToFile(self):
         self.packConrols.saveDraft()
+
+    def saveExisting(self):
+        if self.save_draft_action.isEnabled():
+            self.packConrols.saveDraft(self.packConrols.saveFile)
+            #self.paintingEditor.notify("Saved!")
+
+    def requestViewPortDraw(self):
+        self.paintingEditor.requestViewPortDraw()
 
     def setCurrentImage(self, file_path):
         self.paintingEditor.setCurrentImage(file_path)

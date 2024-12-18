@@ -257,8 +257,19 @@ class PaintingEditor(QWidget):
         self.updateComboBox()
         self.parent.setButtonEnabled(False)
         self.viewPort.displayText("Drop image here to customize your painting")
-        self.path_label.setText("")
+        self.setToolbarText("")
         self.view_size = 400
+
+    def notify(self, msg):
+        timer = QTimer()
+        timer.setInterval(1000)
+        currText = self.path_label.text()
+        self.setToolbarText(msg)
+        timer.timeout.connect(lambda: self.setToolbarText(currText))
+        timer.start()
+
+    def setToolbarText(self, msg):
+        self.path_label.setText(msg)
 
     def view_slider_changed(self):
         zoom = self.view_slider.value() / 100
@@ -303,7 +314,6 @@ class PaintingEditor(QWidget):
         imageData[paintingName]['size'] = self.size_combo_box.currentText()
         imageData[paintingName]['scale_method'] = self.scale_combo_box.currentText()
         imageData[paintingName]['background_color'] = self.backgroundColor
-        imageData[paintingName]['frame_index'] = self.frame_combo_box.currentIndex()
         imageData[paintingName]['file_path'] = self.art_url
         return imageData, paintingName, self.painting
 
@@ -339,12 +349,12 @@ class PaintingEditor(QWidget):
                 self.forceViewPortDraw()
                 self.autoSetComboBoxes(file_name)
                 curr = self.init_stack_count-len(self.file_path_stack)
-                self.path_label.setText(f"File: [{curr}/{self.init_stack_count}] - {self.art_path}")
+                self.setToolbarText(f"File: [{curr}/{self.init_stack_count}] - {self.art_path}")
                 self.parent.setButtonEnabled(True)
             except Exception as e:
                 self.getNextImage()
                 self.viewPort.displayText(f"Failed to open image: {str(e)}")
-                self.path_label.setText("")
+                self.setToolbarText("")
         else:
             self.init_stack_count = 0
             #print("Stack is empty.")
@@ -352,17 +362,17 @@ class PaintingEditor(QWidget):
             self.updateComboBox()
             self.parent.setButtonEnabled(False)
             self.viewPort.displayText("Drop Next image here")
-            self.path_label.setText("")
+            self.setToolbarText("")
 
     def requestViewPortDraw(self):
         if self.drawThread.isActive():
-            #print("WARN: Time delta short. ViewPort Locked")
+            print("WARN: Time delta short. ViewPort Locked")
             return
         if self.updating == True:
-            #print("WARN: blocked update, update in progress.")
+            print("WARN: blocked update, update in progress.")
             return
         if self.lock == True:
-            #print("WARN: A push to the image view was preformed while it was locked!")
+            print("WARN: A push to the image view was preformed while it was locked!")
             return
         self.drawThread.start(16) # 16ms frame delta
 
@@ -468,6 +478,7 @@ class PackControls(QWidget):
         self.parent = parent
 
         self.packCreated = False
+        self.saveFile = None
         self.changesSaved = True
         self.used_paintings = {}
         PackConrols_layout = QVBoxLayout()
@@ -548,6 +559,8 @@ class PackControls(QWidget):
             pixmap = QPixmap(self.resource_path("pack.png"))
         self.packIcon_label.setPixmap(pixmap.scaled(QSize(100, 100), aspectRatioMode=1))
         self.packTitle_label.setText(f"{self.packName}\nFormat: {number}\n\n{description}")
+        self.changesSaved = True
+        self.saveFile = None
         self.listwidget.clear()
 
     def setPackInfo(self, title, packMeta, icon):
@@ -599,6 +612,7 @@ class PackControls(QWidget):
         self.parent.setCurrentImage(paintingMetaData['file_path'])
         self.parent.setCurrentData(name, paintingMetaData)
         self.parent.setLockStatus(False)
+        self.parent.requestViewPortDraw()
 
 
     def writeImage(self):
@@ -653,6 +667,7 @@ class PackControls(QWidget):
             with open(file_name) as f:
                 loaded_paintings = json.load(f)
             self.loadDraft(loaded_paintings)
+            self.saveFile = file_name
             self.changesSaved = True
 
 
@@ -682,6 +697,7 @@ class PackControls(QWidget):
         if file == None:
             file, _ = QFileDialog.getSaveFileName(self.parent, "Save Draft", directory, "PaintingStudio Draft (*.json)")
         if file:
+            self.saveFile = file
             self.changesSaved = True
             with open(file, "w") as fp:
                 json.dump(self.used_paintings, fp)
