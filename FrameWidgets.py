@@ -244,6 +244,9 @@ class PaintingEditor(QWidget):
         # Get the dropped file path
         if self.packConrols.packCreated == True:
             for file in event.mimeData().urls():
+                if Path(file.toLocalFile()).name.split(".")[1].lower() == "json":
+                    self.parent.loadFromFile(file.toLocalFile())
+                    return
                 self.file_path_stack.append(file)
             self.init_stack_count = len(self.file_path_stack)
             self.lock = False
@@ -660,9 +663,10 @@ class PackControls(QWidget):
             self.pack_builder.writePack(file)
             QMessageBox.information(self, "Pack Saved", f"Resource Pack saved to\n{file}")
 
-    def openDraft(self):
+    def openDraft(self, file_name=False):
         directory = os.path.join(os.path.expanduser("~"), "Documents")
-        file_name, _ = QFileDialog.getOpenFileName(self.parent, 'Load Draft', directory, 'PaintingStudio Draft (*.json)')
+        if not file_name:
+            file_name, _ = QFileDialog.getOpenFileName(self.parent, 'Load Draft', directory, 'PaintingStudio Draft (*.json)')
         if file_name:
             with open(file_name) as f:
                 loaded_paintings = json.load(f)
@@ -692,9 +696,9 @@ class PackControls(QWidget):
             i+=1
         dialog.close_dialog()
 
-    def saveDraft(self, file=None):
+    def saveDraft(self, file=False):
         directory = os.path.join(os.path.expanduser("~"), "Documents", f"{self.packName}.json")
-        if file == None:
+        if not file:
             file, _ = QFileDialog.getSaveFileName(self.parent, "Save Draft", directory, "PaintingStudio Draft (*.json)")
         if file:
             self.saveFile = file

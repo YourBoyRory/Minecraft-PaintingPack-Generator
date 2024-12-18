@@ -90,7 +90,7 @@ class PaintingStudio(QMainWindow):
         dialog = SaveChangesDialog(self, self.packConrols.changesSaved)
         reply = dialog.getReply()
         if reply == QMessageBox.Yes:
-            self.saveToFile()
+            self.saveExisting()
             event.accept()
         elif reply == QMessageBox.No:
             event.accept()
@@ -127,7 +127,7 @@ class PaintingStudio(QMainWindow):
         dialog = SaveChangesDialog(self, self.packConrols.changesSaved)
         reply = dialog.getReply()
         if reply == QMessageBox.Yes:
-            self.saveToFile()
+            self.saveExisting()
             pass
         elif reply == QMessageBox.No:
             pass
@@ -165,17 +165,17 @@ class PaintingStudio(QMainWindow):
         self.paintingEditor.setButtonEnabled(value)
         return
 
-    def loadFromFile(self):
+    def loadFromFile(self, file=False):
         dialog = SaveChangesDialog(self,self.packConrols.changesSaved)
         reply = dialog.getReply()
         if reply == QMessageBox.Yes:
-            self.saveToFile()
+            self.saveExisting()
             pass
         elif reply == QMessageBox.No:
             pass
         else:
             return
-        self.packConrols.openDraft()
+        self.packConrols.openDraft(file)
 
     def saveToFile(self):
         self.packConrols.saveDraft()
