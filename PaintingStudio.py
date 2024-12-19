@@ -97,6 +97,22 @@ class PaintingStudio(QMainWindow):
         else:
             event.ignore()
 
+    def initPack(self, args):
+        if len(args) > 1:
+            try:
+                with open(args[1]) as f:
+                    draft = json.load(f)
+                self.packName = draft['pson']['title']
+                packMeta = draft['pson']['meta']
+                self.packConrols.setPackInfo(title, packMeta, icon)
+            except:
+                self.newPack()
+                print("Draft too old  or failed to parse")
+            self.packConrols.openDraft(args[1])
+        else:
+            self.newPack()
+
+
     ## Menu Bar ##
 
     def batchEdit(self):
@@ -243,5 +259,5 @@ if __name__ == "__main__":
     window = PaintingStudio()
     #window.setObjectName("Frame")
     window.show()
-    window.newPack()
+    window.initPack(sys.argv)
     sys.exit(app.exec_())

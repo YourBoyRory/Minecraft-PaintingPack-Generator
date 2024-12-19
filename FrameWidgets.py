@@ -242,17 +242,19 @@ class PaintingEditor(QWidget):
 
     def dropEvent(self, event):
         # Get the dropped file path
-        if self.packConrols.packCreated == True:
-            for file in event.mimeData().urls():
-                if Path(file.toLocalFile()).name.split(".")[1].lower() == "json":
-                    self.parent.loadFromFile(file.toLocalFile())
-                    return
+        for file in event.mimeData().urls():
+            ext = Path(file.toLocalFile()).name.split(".")[1].lower()
+            if ext == "paft" or ext == "json":
+                self.parent.loadFromFile(file.toLocalFile())
+                return
+            if self.packConrols.packCreated == True:
                 self.file_path_stack.append(file)
-            self.init_stack_count = len(self.file_path_stack)
-            self.lock = False
-            self.getNextImage()
-        else:
-            QMessageBox.information(self, "Pack not Created", f"Please create a pack before importing images.")
+                self.init_stack_count = len(self.file_path_stack)
+                self.lock = False
+                self.getNextImage()
+            else:
+                QMessageBox.information(self, "Pack not Created", f"Please create a pack before importing images.")
+                return
 
     def reset(self):
         for key in self.paintings:
@@ -369,13 +371,13 @@ class PaintingEditor(QWidget):
 
     def requestViewPortDraw(self):
         if self.drawThread.isActive():
-            print("WARN: Time delta short. ViewPort Locked")
+            #print("WARN: Time delta short. ViewPort Locked")
             return
         if self.updating == True:
-            print("WARN: blocked update, update in progress.")
+            #print("WARN: blocked update, update in progress.")
             return
         if self.lock == True:
-            print("WARN: A push to the image view was preformed while it was locked!")
+            #print("WARN: A push to the image view was preformed while it was locked!")
             return
         self.drawThread.start(16) # 16ms frame delta
 
@@ -619,7 +621,7 @@ class PackControls(QWidget):
             self.parent.requestViewPortDraw()
         except:
             path = paintingMetaData['file_path']
-            QMessageBox.information(self, "File Read Error", f"File no longer readable.\n{path}\n\nThe file may not have the correct permission or is missing.")
+            QMessageBox.information(self, "File Read Error", f"File no longer readable.\n{path}\n\nThey may be missing or lack read permissisons.")
 
 
     def writeImage(self):
@@ -670,7 +672,7 @@ class PackControls(QWidget):
     def openDraft(self, file_name=False):
         directory = os.path.join(os.path.expanduser("~"), "Documents")
         if not file_name:
-            file_name, _ = QFileDialog.getOpenFileName(self.parent, 'Load Draft', directory, 'PaintingStudio Draft (*.json)')
+            file_name, _ = QFileDialog.getOpenFileName(self.parent, 'Load Draft', directory, 'PaintingStudio Draft (*.paft *.json)')
         if file_name:
             try:
                 with open(file_name) as f:
@@ -712,13 +714,13 @@ class PackControls(QWidget):
         if failedPaintings != "":
             if failedCount > 4:
                 failedPaintings += f"    And {failedCount-4} more...\n"
-            QMessageBox.warning(self, "File Read Error", f"The following files are no longer readable:\n{failedPaintings}\nThey may not have the correct permission or are missing.")
+            QMessageBox.warning(self, "File Read Error", f"The following files are no longer readable:\n{failedPaintings}\nThey may be missing or lack read permissisons.")
         dialog.close_dialog()
 
     def saveDraft(self, file=False):
-        directory = os.path.join(os.path.expanduser("~"), "Documents", f"{self.packName}.json")
+        directory = os.path.join(os.path.expanduser("~"), "Documents", f"{self.packName}.paft")
         if not file:
-            file, _ = QFileDialog.getSaveFileName(self.parent, "Save Draft", directory, "PaintingStudio Draft (*.json)")
+            file, _ = QFileDialog.getSaveFileName(self.parent, "Save Draft", directory, "PaintingStudio Draft (*.paft)")
         if file:
             self.saveFile = file
             self.changesSaved = True
