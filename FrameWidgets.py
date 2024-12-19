@@ -244,17 +244,17 @@ class PaintingEditor(QWidget):
         # Get the dropped file path
         for file in event.mimeData().urls():
             ext = Path(file.toLocalFile()).name.split(".")[1].lower()
-            if ext == "paft" or ext == "json":
+            if ext == "pson" or ext == "json":
                 self.parent.loadFromFile(file.toLocalFile())
                 return
             if self.packConrols.packCreated == True:
                 self.file_path_stack.append(file)
                 self.init_stack_count = len(self.file_path_stack)
-                self.lock = False
-                self.getNextImage()
             else:
                 QMessageBox.information(self, "Pack not Created", f"Please create a pack before importing images.")
                 return
+        self.lock = False
+        self.getNextImage()
 
     def reset(self):
         for key in self.paintings:
@@ -335,6 +335,7 @@ class PaintingEditor(QWidget):
         self.requestViewPortDraw()
 
     def getNextImage(self):
+        print(self.file_path_stack)
         if len(self.file_path_stack) > 0:
             try:
                 url = self.file_path_stack.pop()
@@ -362,7 +363,7 @@ class PaintingEditor(QWidget):
                 self.setToolbarText("")
         else:
             self.init_stack_count = 0
-            #print("Stack is empty.")
+            print("Stack is empty.")
             self.lock = True
             self.updateComboBox()
             self.parent.setButtonEnabled(False)
@@ -400,7 +401,7 @@ class PaintingEditor(QWidget):
             showFrame = True
             frameName = self.paintings[size][frame]
         self.painting = self.painting_maker.makePaiting(detail, scale_method, self.backgroundColor, frameName, showFrame, self.art)
-
+        print("Painting Loaded:", self.painting)
         # Display the image in viewport
         pil_image = self.painting.convert("RGB")
         data = pil_image.tobytes("raw", "RGB")
@@ -486,6 +487,7 @@ class PackControls(QWidget):
         self.saveFile = None
         self.changesSaved = True
         self.used_paintings = {}
+        self.packData = {}
         PackConrols_layout = QVBoxLayout()
 
         # Pack Info
@@ -544,13 +546,25 @@ class PackControls(QWidget):
             edit_action.setEnabled(False)
         context_menu.exec_(global_pos)
 
-    def reset(self):
+    def reset(self, packData=False):
         self.used_paintings = {}
-        number = self.packMeta['pack']['pack_format']
-        description = self.packMeta['pack']['description']
-        self.pack_builder = ResourcePackBuilder(self.packMeta)
-        if self.icon != None:
-            pil_image = Image.open(self.icon).convert('RGB')
+        if packData:
+            self.setPackInfo(packData)
+        self.changesSaved = True
+        self.saveFile = None
+        self.listwidget.clear()
+
+    def setPackInfo(self, packData):
+        self.packCreated = True
+        self.packData = packData
+        self.packName = self.packData['title']
+        packMeta = self.packData['meta']
+        packIcon = self.packData['icon']
+        formatNumber = packMeta['pack']['pack_format']
+        packDescription = packMeta['pack']['description']
+        self.pack_builder = ResourcePackBuilder(packMeta)
+        try:
+            pil_image = Image.open(packIcon).convert('RGB')
             pil_image_resized = pil_image.resize((64,64))
             image_bytes = BytesIO()
             pil_image_resized.save(image_bytes, format='PNG')
@@ -559,22 +573,12 @@ class PackControls(QWidget):
             data = pil_image_resized.tobytes("raw", "RGB")
             qim = QImage(data, pil_image_resized.width, pil_image_resized.height, QImage.Format_RGB888)
             pixmap = QPixmap(QPixmap.fromImage(qim))
-        else:
-            #print("No Image Provided")
+        except:
+            print("No Image Provided or failed to load")
             pixmap = QPixmap(self.resource_path("pack.png"))
         self.packIcon_label.setPixmap(pixmap.scaled(QSize(100, 100), aspectRatioMode=1))
-        self.packTitle_label.setText(f"{self.packName}\nFormat: {number}\n\n{description}")
-        self.changesSaved = True
-        self.saveFile = None
-        self.listwidget.clear()
-
-    def setPackInfo(self, title, packMeta, icon):
-        self.packCreated = True
-        self.packName = title
-        self.packMeta = packMeta
-        self.icon = icon
-        self.reset()
-
+        self.packTitle_label.setText(f"{self.packName}\nFormat: {formatNumber}\n\n{packDescription}")
+        
     def removeImage(self, item):
         self.changesSaved = False
         try:
@@ -669,19 +673,15 @@ class PackControls(QWidget):
             self.pack_builder.writePack(file)
             QMessageBox.information(self, "Pack Saved", f"Resource Pack saved to\n{file}")
 
-    def openDraft(self, file_name=False):
-        directory = os.path.join(os.path.expanduser("~"), "Documents")
-        if not file_name:
-            file_name, _ = QFileDialog.getOpenFileName(self.parent, 'Load Draft', directory, 'PaintingStudio Draft (*.paft *.json)')
-        if file_name:
-            try:
-                with open(file_name) as f:
-                    loaded_paintings = json.load(f)
-                self.loadDraft(loaded_paintings)
-                self.saveFile = file_name
-                self.changesSaved = True
-            except:
-                QMessageBox.warning(self, "Draft Read Error", f"Could not parse the draft file, it may have been made in a older version or is currupted.")
+    def openDraft(self, file_name):
+        with open(file_name) as f:
+            loaded_paintings = json.load(f)
+        if 'paintings' not in loaded_paintings:
+            self.loadDraft(loaded_paintings)
+        else:
+            self.loadDraft(loaded_paintings['paintings'])
+        self.saveFile = file_name
+        self.changesSaved = True
 
 
     def loadDraft(self, loaded_paintings):
@@ -696,21 +696,22 @@ class PackControls(QWidget):
         failedCount = 0
         for paintingName in loaded_paintings:
             paintingMetaData = loaded_paintings[paintingName]
-            try:
-                self.used_paintings[paintingName] = loaded_paintings[paintingName]
-                self.used_paintings.pop(paintingName, None)
-                self.parent.setCurrentData(paintingName, paintingMetaData)
-                self.parent.setCurrentImage(paintingMetaData['file_path'])
-                self.parent.setCurrentData(paintingName, paintingMetaData)
-                QApplication.processEvents()
-                self.writeImage()
-                dialog.update_progress_signal.emit(i)
-                i+=1
-            except:
-                if failedCount < 4:
-                    path = paintingMetaData['file_path']
-                    failedPaintings += f"    {path}\n"
-                failedCount += 1
+            print(paintingMetaData)
+            #try:
+            self.used_paintings[paintingName] = loaded_paintings[paintingName]
+            #self.used_paintings.pop(paintingName, None) # why do i do this?
+            self.parent.setCurrentData(paintingName, paintingMetaData)
+            self.parent.setCurrentImage(paintingMetaData['file_path'])
+            self.parent.setCurrentData(paintingName, paintingMetaData)
+            QApplication.processEvents()
+            self.writeImage()
+            dialog.update_progress_signal.emit(i)
+            i+=1
+            #except:
+            #    if failedCount < 4:
+            #        path = paintingMetaData['file_path']
+            #        failedPaintings += f"    {path}\n"
+            #    failedCount += 1
         if failedPaintings != "":
             if failedCount > 4:
                 failedPaintings += f"    And {failedCount-4} more...\n"
@@ -718,14 +719,18 @@ class PackControls(QWidget):
         dialog.close_dialog()
 
     def saveDraft(self, file=False):
-        directory = os.path.join(os.path.expanduser("~"), "Documents", f"{self.packName}.paft")
+        directory = os.path.join(os.path.expanduser("~"), "Documents", f"{self.packName}.pson")
         if not file:
-            file, _ = QFileDialog.getSaveFileName(self.parent, "Save Draft", directory, "PaintingStudio Draft (*.paft)")
+            file, _ = QFileDialog.getSaveFileName(self.parent, "Save Draft", directory, "PaintingStudio Draft (*.pson)")
         if file:
             self.saveFile = file
             self.changesSaved = True
+            dump = {
+                'pson': self.packData,
+                'paintings': self.used_paintings
+            }
             with open(file, "w") as fp:
-                json.dump(self.used_paintings, fp)
+                json.dump(dump, fp)
             QMessageBox.information(self, "Draft Saved", f"Draft saved to\n{file}")
 
     def resource_path(self, file):

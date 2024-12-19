@@ -212,7 +212,7 @@ class LoadingDialog(QDialog):
         self.close()  # Close the dialog
 
 class InputDialog(QDialog):
-    def __init__(self, parent):
+    def __init__(self, parent, currData=False):
         super().__init__(parent)
         self.icon = None
         self.setWindowTitle("Create New Pack")
@@ -221,19 +221,35 @@ class InputDialog(QDialog):
         # Create form layout
         layout = QFormLayout()
         packFormatLayout = QHBoxLayout()
+        if not currData:
+            currData = {
+                'title': "PaintingPack",
+                'icon': None,
+                'meta': {
+                    "pack": {
+                        "description": "My Painting Pack",
+                        "pack_format": 46
+                    }
+                }
+            }
 
         # Create input fields
-        self.title_input = QLineEdit("PaintingPack")
+        self.title_input = QLineEdit(currData['title'])
         self.title_input.textChanged.connect(self.feild_validation)
-        self.description_input = QLineEdit("My Painting Pack")
+        self.description_input = QLineEdit(currData['meta']['pack']['description'])
         self.description_input.textChanged.connect(self.feild_validation)
         self.number_input = QSpinBox()
-        self.number_input.setValue(46)      # Most up to date pact format as of relase
+        self.number_input.setValue(currData['meta']['pack']['pack_format'])      # Most up to date pact format as of relase
         self.number_input.setRange(4, 65535)  # Surely they add more paintings before Format 65535
         packFormatLayout.addWidget(self.number_input)
         self.packFormatLink = QPushButton("Help")
         packFormatLayout.addWidget(self.packFormatLink)
-        self.iconButton = QPushButton("Set Pack Icon")
+        if currData['icon'] != None:
+            print(currData['icon'])
+            self.iconButton = QPushButton("Icon Set!")
+            self.icon = currData['icon']
+        else:
+            self.iconButton = QPushButton("Set Pack Icon")
         self.iconButton.clicked.connect(self.setIcon)
 
         # Add fields to the layout

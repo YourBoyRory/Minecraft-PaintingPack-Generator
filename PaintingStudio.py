@@ -54,6 +54,11 @@ class PaintingStudio(QMainWindow):
         self.save_draft_action = QAction('Save', self)
         self.save_draft_action.triggered.connect(self.saveExisting)
         file_menu.addAction(self.save_draft_action)
+        
+        edit_menu = menubar.addMenu('Edit')
+        self.edit_pack_info = QAction('Edit Pack Info', self)
+        self.edit_pack_info.triggered.connect(self.editPackInfo)
+        edit_menu.addAction(self.edit_pack_info)
 
         tool_menu = menubar.addMenu('Tools')
         self.batch_edit_action = QAction('Batch Edit', self)
@@ -97,21 +102,12 @@ class PaintingStudio(QMainWindow):
         else:
             event.ignore()
 
-    def initPack(self, args):
-        if len(args) > 1:
-            try:
-                with open(args[1]) as f:
-                    draft = json.load(f)
-                self.packName = draft['pson']['title']
-                packMeta = draft['pson']['meta']
-                self.packConrols.setPackInfo(title, packMeta, icon)
-            except:
-                self.newPack()
-                print("Draft too old  or failed to parse")
-            self.packConrols.openDraft(args[1])
-        else:
-            self.newPack()
-
+    def initPack(self, file):
+        with open(file) as f:
+            draft = json.load(f)
+        self.paintingEditor.newPack()
+        self.packConrols.reset(draft['pson'])
+        self.edit_pack_info.setEnabled(self.packConrols.packCreated)
 
     ## Menu Bar ##
 
@@ -122,22 +118,42 @@ class PaintingStudio(QMainWindow):
             new_draft = self.packConrols.used_paintings
             for painting in new_draft:
                 if data['detail'] != False:
-                    new_draft[painting]['detail'] = data['detail']
+                    new_draft['paintings'][painting]['detail'] = data['detail']
                 if  data['scale_method'] != False:
-                    new_draft[painting]['scale_method'] = data['scale_method']
+                    new_draft['paintings'][painting]['scale_method'] = data['scale_method']
                 if data['frameName'] != False:
                     if data['frameName'] == "Default":
-                        new_draft[painting]['frameName'] = painting
+                        new_draft['paintings'][painting]['frameName'] = painting
                     else:
-                        new_draft[painting]['frameName'] = "None"
+                        new_draft['paintings'][painting]['frameName'] = "None"
                 if data['background_color'] != False:
-                    new_draft[painting]['background_color'] = data['background_color']
+                    new_draft['paintings'][painting]['background_color'] = data['background_color']
             self.packConrols.loadDraft(new_draft)
 
 
     def prog_help(self):
         dialog = HelpDialog(self)
         dialog.exec_()
+
+    def editPackInfo(self):
+        dialog = InputDialog(self, self.packConrols.packData)
+        if dialog.exec_() == QDialog.Accepted:
+            title, description, number, icon = dialog.get_data()
+            self.paintingEditor.newPack()
+            #remove self. later
+            self.packName = title
+            packData = {
+                'title': title,
+                'icon': icon,
+                'meta': {
+                    "pack": {
+                        "description": f"{description}",
+                        "pack_format": number
+                    }
+                }
+            }
+            self.packConrols.setPackInfo(packData)
+
 
     def newPack(self):
         dialog = SaveChangesDialog(self, self.packConrols.changesSaved)
@@ -159,13 +175,18 @@ class PaintingStudio(QMainWindow):
             self.paintingEditor.newPack()
             #remove self. later
             self.packName = title
-            packMeta = {
-                "pack": {
-                    "description": f"{description}",
-                    "pack_format": number
+            packData = {
+                'title': title,
+                'icon': icon,
+                'meta': {
+                    "pack": {
+                        "description": f"{description}",
+                        "pack_format": number
+                    }
                 }
             }
-            self.packConrols.setPackInfo(title, packMeta, icon)
+            self.packConrols.reset(packData)
+            self.edit_pack_info.setEnabled(self.packConrols.packCreated)
 
     ## Wrappers ##
 
@@ -179,6 +200,7 @@ class PaintingStudio(QMainWindow):
         self.batch_edit_action.setEnabled(listFull)
         self.packConrols.add_button.setEnabled(value)
         self.paintingEditor.setButtonEnabled(value)
+        self.edit_pack_info.setEnabled(self.packConrols.packCreated)
         return
 
     def loadFromFile(self, file=False):
@@ -191,6 +213,15 @@ class PaintingStudio(QMainWindow):
             pass
         else:
             return
+        directory = os.path.join(os.path.expanduser("~"), "Documents")
+        if not file:
+            file, _ = QFileDialog.getOpenFileName(self, 'Load Draft', directory, 'PaintingStudio Draft (*.pson *.json)')
+        if file:
+            try:
+                self.initPack(file)
+            except:
+                QMessageBox.warning(self, "Draft Read Error", f"Could not parse the draft meta data, it may have been made in a older version or is currupted.\n\nPlease set the meta data now")
+                self.newPack()
         self.packConrols.openDraft(file)
 
     def saveToFile(self):
@@ -259,5 +290,13 @@ if __name__ == "__main__":
     window = PaintingStudio()
     #window.setObjectName("Frame")
     window.show()
-    window.initPack(sys.argv)
+    try:
+        if len(sys.argv) > 1:
+            print(sys.argv[1])
+            window.loadFromFile(sys.argv[1])
+        else:
+            window.newPack()
+    except:
+        window.newPack()
+        print("Draft too old or failed to parse")
     sys.exit(app.exec_())
