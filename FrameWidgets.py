@@ -569,7 +569,7 @@ class PackControls(QWidget):
             image_bytes = BytesIO()
             pil_image_resized.save(image_bytes, format='PNG')
             image_bytes.seek(0)
-            self.pack_builder.addFile("assets/pack.png", image_bytes.read())
+            self.pack_builder.addFile("pack.png", image_bytes.read())
             data = pil_image_resized.tobytes("raw", "RGB")
             qim = QImage(data, pil_image_resized.width, pil_image_resized.height, QImage.Format_RGB888)
             pixmap = QPixmap(QPixmap.fromImage(qim))
