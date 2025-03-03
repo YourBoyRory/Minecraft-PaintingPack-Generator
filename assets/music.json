@@ -1,19 +1,78 @@
 {
-  "discs": [
-    "13",
-    "cat",
-    "blocks",
-    "chirp",
-    "far",
-    "mall",
-    "mellohi",
-    "stal",
-    "strad",
-    "ward",
-    "11",
-    "wait",
-    "pigstep",
-    "otherside",
-    "disc 5"
-  ]
+    "Blocks": {
+        "author": "C481",
+        "file_name": "music_disc_blocks"
+    },
+    "Cat": {
+        "author": "C481",
+        "file_name": "music_disc_cat"
+    },
+    "Chirp": {
+        "author": "C481",
+        "file_name": "music_disc_chirp"
+    },
+    "Creator": {
+        "author": "Lena Raine",
+        "file_name": "music_disc_creator"
+    },
+    "Creator Music": {
+        "author": "Lena Raine",
+        "file_name": "music_disc_creator_music_box"
+    },
+    "Far": {
+        "author": "C481",
+        "file_name": "music_disc_far"
+    },
+    "Mall": {
+        "author": "C481",
+        "file_name": "music_disc_mall"
+    },
+    "Mellohi": {
+        "author": "C481",
+        "file_name": "music_disc_mellohi"
+    },
+    "Otherside": {
+        "author": "Lena Raine",
+        "file_name": "music_disc_otherside"
+    },
+    "Pigstep": {
+        "author": "Lena Raine",
+        "file_name": "music_disc_pigstep"
+    },
+    "Precipice": {
+        "author": "Aaron Cherof",
+        "file_name": "music_disc_precipice"
+    },
+    "Relic": {
+        "author": "Aaron Cherof",
+        "file_name": "music_disc_relic"
+    },
+    "Stal": {
+        "author": "C481",
+        "file_name": "music_disc_stal"
+    },
+    "Strad": {
+        "author": "C481",
+        "file_name": "music_disc_strad"
+    },
+    "Wait": {
+        "author": "C481",
+        "file_name": "music_disc_wait"
+    },
+    "Ward": {
+        "author": "C481",
+        "file_name": "music_disc_ward"
+    },
+    "Disc 5": {
+        "author": "Samuel Åberg",
+        "file_name": "music_disc_5"
+    },
+    "Disc 11": {
+        "author": "C481",
+        "file_name": "music_disc_11"
+    },
+    "Disc 13": {
+        "author": "C481",
+        "file_name": "music_disc_13"
+    }
 }

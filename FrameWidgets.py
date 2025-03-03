@@ -477,7 +477,6 @@ class PaintingEditor(QWidget):
             base_path = os.path.dirname(__file__)
         return os.path.join(base_path, 'assets', file)
 
-
 class MusicEditor(QWidget):
 
     def __init__(self, parent):
@@ -489,10 +488,11 @@ class MusicEditor(QWidget):
 
         init_silder_value = 500
         self.view_size = int(100 + (init_silder_value / 500) * 300)
+        self.discArtPath = None
 
         with open(self.resource_path('music.json'), 'r') as file:
-            discJson = json.load(file)
-        self.discs = discJson['discs']
+            self.discs = json.load(file)
+        print(self.discs)
         self.file_path_stack = []
         self.drawThread = QTimer(self)
         self.drawThread.timeout.connect(self.forceViewPortDraw)
@@ -508,22 +508,27 @@ class MusicEditor(QWidget):
         MusicOptions = QWidget()
         MusicOptions.setObjectName("Frame")
         MusicOptions_layout = QVBoxLayout()
+        TextureOptions_layout = QVBoxLayout()
 
         lable_width = 120
         disc_layout = QHBoxLayout()
         self.disc_combo_box = QComboBox(self)
-        self.disc_combo_box.addItems(self.discs)
+        self.disc_combo_box.addItems(self.discs.keys())
         disc_label = QLabel('Music Disc: ')
         disc_label.setMaximumWidth(lable_width)
         disc_layout.addWidget(disc_label)
         disc_layout.addWidget(self.disc_combo_box)
         texture_layout = QHBoxLayout()
         self.texture_combo_box = QComboBox(self)
-        self.texture_combo_box.addItems(self.discs)
+        self.texture_combo_box.addItem('Custom')
+        self.texture_combo_box.addItems(self.discs.keys())
+        self.texture_combo_box.setCurrentText(self.disc_combo_box.currentText())
         texture_label = QLabel('Texture: ')
         texture_label.setMaximumWidth(lable_width)
         texture_layout.addWidget(texture_label)
         texture_layout.addWidget(self.texture_combo_box)
+        self.disc_combo_box.currentIndexChanged.connect(self.updateTextureComboBox)
+        self.texture_combo_box.currentIndexChanged.connect(self.requestViewPortDraw)
 
         title_layout = QHBoxLayout()
         self.title_combo_box = QLineEdit(self)
@@ -532,12 +537,55 @@ class MusicEditor(QWidget):
         title_label.setMaximumWidth(lable_width)
         title_layout.addWidget(title_label)
         title_layout.addWidget(self.title_combo_box)
+        author_layout = QHBoxLayout()
+        self.author_combo_box = QLineEdit(self)
+        self.author_combo_box.setPlaceholderText(self.discs[self.disc_combo_box.currentText()]['author'])
+        author_label = QLabel('Author: ')
+        author_label.setMaximumWidth(lable_width)
+        author_layout.addWidget(author_label)
+        author_layout.addWidget(self.author_combo_box)
+
+
+        
+        detail_layout = QHBoxLayout()
+        self.detail_spin_box = QSpinBox(self)
+        self.detail_spin_box.setRange(1, 16)  # Set the valid range (1 to 100)
+        self.detail_spin_box.setValue(1)  # Set the initial value
+        self.detail_spin_box.valueChanged.connect(self.requestViewPortDraw)
+        detail_label = QLabel('Detail: ')
+        detail_label.setMaximumWidth(lable_width)
+        detail_layout.addWidget(detail_label)
+        detail_layout.addWidget(self.detail_spin_box)
+        
+        scale_layout = QHBoxLayout()
+        self.scale_combo_box = QComboBox(self)
+        scale_label = QLabel('Scale Method: ')
+        scale_label.setMaximumWidth(lable_width)
+        scale_layout.addWidget(scale_label)
+        self.scaleOptions = ["Fit", "Stretch"]
+        self.scale_combo_box.addItems(self.scaleOptions)
+        self.scale_combo_box.currentIndexChanged.connect(self.requestViewPortDraw)
+        scale_layout.addWidget(self.scale_combo_box)
+        file_button_layout = QHBoxLayout()
+        self.file_button = QPushButton('Choose File', self)
+        self.file_button.clicked.connect(self.showFileDialog)
+        file_button_layout.addWidget(self.file_button)
+
+        TextureOptions_layout.addWidget(QLabel("<br><b>Texture Options</b>"))
+        TextureOptions_layout.addLayout(file_button_layout)
+        TextureOptions_layout.addLayout(detail_layout)
+        TextureOptions_layout.addLayout(scale_layout)
+        self.TextureOptions = QWidget()
+        self.TextureOptions.setLayout(TextureOptions_layout)
+        self.setTextureVisible(False)
 
         # Add Layouts
         MusicOptions_layout.addWidget(QLabel("<br><b>Music Disc Options</b>"))
         MusicOptions_layout.addLayout(disc_layout)
         MusicOptions_layout.addLayout(texture_layout)
         MusicOptions_layout.addLayout(title_layout)
+        MusicOptions_layout.addLayout(author_layout)
+        MusicOptions_layout.addWidget(self.TextureOptions)
         MusicOptions_layout.addStretch()
         MusicOptions.setLayout(MusicOptions_layout)
         combine_OptionsViewport.addWidget(MusicOptions)
@@ -545,12 +593,25 @@ class MusicEditor(QWidget):
         MusicOptions.setMaximumWidth(350)
 
         """View Port"""
-        self.viewPort = QWidget()
-        combine_OptionsViewport.addWidget(self.viewPort)
+        ViewPort = QWidget()
+        viewPort_layout = QVBoxLayout()
+        self.discArt = QLabel("Select Texture Image.")
+        self.discArt.setAlignment(Qt.AlignCenter)
+        self.loadedFile = QLabel("Drop MP3 file here.\n\n")
+        self.loadedFile.setAlignment(Qt.AlignCenter)
+        font = QFont("Sans", 16)
+        self.loadedFile.setFont(font)
+        viewPort_layout.addStretch()
+        viewPort_layout.addWidget(self.discArt)
+        viewPort_layout.addWidget(self.loadedFile)
+        viewPort_layout.addStretch()
+        ViewPort.setLayout(viewPort_layout)
+        combine_OptionsViewport.addWidget(ViewPort)
         MusicEditor_Layout.addLayout(combine_OptionsViewport)
-        self.viewPort.setMinimumWidth(600)
+        ViewPort.setMinimumWidth(600)
         #Add Layouts
         self.setLayout(MusicEditor_Layout)
+        self.requestViewPortDraw()
 
     def newPack(self):
         print("newPack Not Implemented.")
@@ -590,26 +651,8 @@ class MusicEditor(QWidget):
         self.setToolbarText("")
         self.view_size = 400
 
-    def notify(self, msg):
-        print("notify Not Implemented.")
-        pass # TODO: REMOVE notify
-        timer = QTimer()
-        timer.setInterval(1000)
-        currText = self.path_label.text()
-        self.setToolbarText(msg)
-        timer.timeout.connect(lambda: self.setToolbarText(currText))
-        timer.start()
-
-    def setToolbarText(self, msg):
-        print("setToolbarText Not Implemented.")
-        pass # TODO: REMOVE setToolbarText
-        self.path_label.setText(msg)
-
-    def view_slider_changed(self):
-        print("view_slider_changed Not Implemented.")
-        pass # TODO: Remove view_slider_changed
-        zoom = self.view_slider.value() / 100
-        self.viewPort.setZoom(zoom)
+    def setTextureVisible(self, boolean):
+        self.TextureOptions.setVisible(boolean)
 
     def setButtonEnabled(self, value):
         print("setButtonEnabled Not Implemented.")
@@ -666,15 +709,8 @@ class MusicEditor(QWidget):
         pass # TODO: REMOVE getCurrentImage
         return self.currentPixmap
 
-    def showColorDialog(self):
-        print("showColorDialog Not Implemented.")
-        pass # TODO: REMOVE showColorDialog
-        # Open the QColorDialog
-        color = QColorDialog.getColor(QColor(self.backgroundColor))
-
-        if color.isValid():
-            # Update the label with the chosen color
-            self.backgroundColor = color.name()
+    def showFileDialog(self):
+        self.discArtPath, _ = QFileDialog.getOpenFileName(self, 'Load Draft')
         self.requestViewPortDraw()
 
     def getNextImage(self):
@@ -716,18 +752,30 @@ class MusicEditor(QWidget):
             self.setToolbarText("")
 
     def requestViewPortDraw(self):
-        print("requestViewPortDraw Not Implemented.")
-        pass # TODO: IMPLEMENT requestViewPortDraw
-        if self.drawThread.isActive():
-            #print("WARN: Time delta short. ViewPort Locked")
-            return
-        if self.updating == True:
-            #print("WARN: blocked update, update in progress.")
-            return
-        if self.lock == True:
-            #print("WARN: A push to the image view was preformed while it was locked!")
-            return
-        self.drawThread.start(16) # 16ms frame delta
+        if self.texture_combo_box.currentText() == 'Custom':
+            self.setTextureVisible(True)
+            if self.discArtPath:
+                try:
+                    pixmap = QPixmap(self.discArtPath)
+                    scale = self.detail_spin_box.value()*16
+                    if self.scale_combo_box.currentIndex() == 0:
+                        pixmap = pixmap.scaled(scale, scale, Qt.KeepAspectRatio, Qt.FastTransformation)
+                    else:
+                        pixmap = pixmap.scaled(scale, scale, Qt.IgnoreAspectRatio, Qt.FastTransformation)
+                except:
+                    print("FNS!")
+                    self.discArt.setText("File not supported.")
+                    return
+            else:
+                self.discArt.setText("Select Texture Image.")
+                return
+                
+        else:
+            self.setTextureVisible(False)
+            filename = self.discs[self.texture_combo_box.currentText()]['file_name']
+            pixmap = QPixmap(f"./assets/disc/{filename}.png")
+        scaled_pixmap = pixmap.scaled(320, 320, Qt.KeepAspectRatio, Qt.FastTransformation)
+        self.discArt.setPixmap(scaled_pixmap)
 
     def forceViewPortDraw(self):
         print("forceViewPortDraw Not Implemented.")
@@ -795,11 +843,12 @@ class MusicEditor(QWidget):
             pass
 
 
-    def updateFrameComboBox(self):
-        print("updateFrameComboBox Not Implemented.")
-        pass # TODO: IMPLEMENT updateFrameComboBox
-        if self.frame_combo_box.currentText() != "None":
-            self.frame_combo_box.setCurrentText(self.painting_combo_box.currentText())
+    def updateTextureComboBox(self):
+        self.title_combo_box.setPlaceholderText(self.disc_combo_box.currentText())
+        self.author_combo_box.setPlaceholderText(self.discs[self.disc_combo_box.currentText()]['author'])
+        if self.texture_combo_box.currentText() != "Custom":
+            self.texture_combo_box.setCurrentText(self.disc_combo_box.currentText())
+        self.requestViewPortDraw()
 
     def updateComboBox(self):
         print("updateComboBox Not Implemented.")
