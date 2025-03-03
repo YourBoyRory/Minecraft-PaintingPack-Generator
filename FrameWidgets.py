@@ -490,8 +490,9 @@ class MusicEditor(QWidget):
         init_silder_value = 500
         self.view_size = int(100 + (init_silder_value / 500) * 300)
 
-        with open(self.resource_path('paintings.json'), 'r') as file:
-            self.paintings = json.load(file)
+        with open(self.resource_path('music.json'), 'r') as file:
+            discJson = json.load(file)
+        self.discs = discJson['discs']
         self.file_path_stack = []
         self.drawThread = QTimer(self)
         self.drawThread.timeout.connect(self.forceViewPortDraw)
@@ -511,21 +512,32 @@ class MusicEditor(QWidget):
         lable_width = 120
         disc_layout = QHBoxLayout()
         self.disc_combo_box = QComboBox(self)
+        self.disc_combo_box.addItems(self.discs)
         disc_label = QLabel('Music Disc: ')
         disc_label.setMaximumWidth(lable_width)
         disc_layout.addWidget(disc_label)
         disc_layout.addWidget(self.disc_combo_box)
         texture_layout = QHBoxLayout()
         self.texture_combo_box = QComboBox(self)
+        self.texture_combo_box.addItems(self.discs)
         texture_label = QLabel('Texture: ')
         texture_label.setMaximumWidth(lable_width)
         texture_layout.addWidget(texture_label)
         texture_layout.addWidget(self.texture_combo_box)
 
+        title_layout = QHBoxLayout()
+        self.title_combo_box = QLineEdit(self)
+        self.title_combo_box.setPlaceholderText(self.disc_combo_box.currentText())
+        title_label = QLabel('Title: ')
+        title_label.setMaximumWidth(lable_width)
+        title_layout.addWidget(title_label)
+        title_layout.addWidget(self.title_combo_box)
+
         # Add Layouts
         MusicOptions_layout.addWidget(QLabel("<br><b>Music Disc Options</b>"))
         MusicOptions_layout.addLayout(disc_layout)
         MusicOptions_layout.addLayout(texture_layout)
+        MusicOptions_layout.addLayout(title_layout)
         MusicOptions_layout.addStretch()
         MusicOptions.setLayout(MusicOptions_layout)
         combine_OptionsViewport.addWidget(MusicOptions)
