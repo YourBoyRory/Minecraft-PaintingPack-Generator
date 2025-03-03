@@ -75,10 +75,14 @@ class PaintingStudio(QMainWindow):
         self.packConrols = PackControls(self)
 
         """Center Widget"""
+        self.viewport = QTabWidget(self)
         self.paintingEditor = PaintingEditor(self)
+        self.musicEditor = QWidget()
+        self.viewport.addTab(self.paintingEditor, "Paintings Editor")
+        self.viewport.addTab(self.musicEditor, "Music Editor")
 
         """Main Window"""
-        layout.addWidget(self.paintingEditor)
+        layout.addWidget(self.viewport)
         layout.addWidget(self.packConrols)
         self.setLayout(layout)
 
