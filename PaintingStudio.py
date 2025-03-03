@@ -11,7 +11,7 @@ from PIL import Image
 from PaintingGenerator import PaintingGenerator
 from ResourcePackBuilder import ResourcePackBuilder
 from FrameDialog import LoadingDialog, InputDialog, HelpDialog, BatchEditDialog, SaveChangesDialog
-from FrameWidgets import PackControls, PaintingEditor
+from FrameWidgets import PackControls, PaintingEditor, MusicEditor
 
 def ResourcePath(folder, file):
     if getattr(sys, 'frozen', False):
@@ -77,7 +77,7 @@ class PaintingStudio(QMainWindow):
         """Center Widget"""
         self.viewport = QTabWidget(self)
         self.paintingEditor = PaintingEditor(self)
-        self.musicEditor = QWidget()
+        self.musicEditor = MusicEditor(self)
         self.viewport.addTab(self.paintingEditor, "Paintings Editor")
         self.viewport.addTab(self.musicEditor, "Music Editor")
 

@@ -509,40 +509,23 @@ class MusicEditor(QWidget):
         MusicOptions_layout = QVBoxLayout()
 
         lable_width = 120
-
-        size_layout = QHBoxLayout()
-        self.size_combo_box = QComboBox(self)
-        size_label = QLabel('Painting Size: ')
-        size_label.setMaximumWidth(lable_width)
-        size_layout.addWidget(size_label)
-        size_layout.addWidget(self.size_combo_box)
-
-        painting_layout = QHBoxLayout()
-        self.painting_combo_box = QComboBox(self)
-        painting_label = QLabel('Painting: ')
-        painting_label.setMaximumWidth(lable_width)
-        painting_layout.addWidget(painting_label)
-        painting_layout.addWidget(self.painting_combo_box)
-        frame_layout = QHBoxLayout()
-        self.frame_combo_box = QComboBox(self)
-        frame_label = QLabel('Frame: ')
-        frame_label.setMaximumWidth(lable_width//2)
-        frame_layout.addWidget(frame_label)
-        frame_layout.addWidget(self.frame_combo_box)
-
-        for key in self.paintings:
-            self.size_combo_box.addItem(key)
-        self.updateComboBox()
-        self.size_combo_box.currentIndexChanged.connect(self.updateComboBox)
-        self.painting_combo_box.currentIndexChanged.connect(self.updateFrameComboBox)
-        self.scale_combo_box.currentIndexChanged.connect(self.requestViewPortDraw)
-        self.frame_combo_box.currentIndexChanged.connect(self.requestViewPortDraw)
+        disc_layout = QHBoxLayout()
+        self.disc_combo_box = QComboBox(self)
+        disc_label = QLabel('Music Disc: ')
+        disc_label.setMaximumWidth(lable_width)
+        disc_layout.addWidget(disc_label)
+        disc_layout.addWidget(self.disc_combo_box)
+        texture_layout = QHBoxLayout()
+        self.texture_combo_box = QComboBox(self)
+        texture_label = QLabel('Texture: ')
+        texture_label.setMaximumWidth(lable_width)
+        texture_layout.addWidget(texture_label)
+        texture_layout.addWidget(self.texture_combo_box)
 
         # Add Layouts
-        MusicOptions_layout.addWidget(QLabel("<br><b>Music Options</b>"))
-        MusicOptions_layout.addLayout(size_layout)
-        MusicOptions_layout.addLayout(painting_layout)
-        MusicOptions_layout.addLayout(frame_layout)
+        MusicOptions_layout.addWidget(QLabel("<br><b>Music Disc Options</b>"))
+        MusicOptions_layout.addLayout(disc_layout)
+        MusicOptions_layout.addLayout(texture_layout)
         MusicOptions_layout.addStretch()
         MusicOptions.setLayout(MusicOptions_layout)
         combine_OptionsViewport.addWidget(MusicOptions)
@@ -550,13 +533,12 @@ class MusicEditor(QWidget):
         MusicOptions.setMaximumWidth(350)
 
         """View Port"""
-        self.viewPort = ViewPort(self)
+        self.viewPort = QWidget()
         combine_OptionsViewport.addWidget(self.viewPort)
         MusicEditor_Layout.addLayout(combine_OptionsViewport)
         self.viewPort.setMinimumWidth(600)
         #Add Layouts
-        MusicEditor_Layout.addWidget(ToolBar)
-        self.setLayout(PaintingEditor_Layout)
+        self.setLayout(MusicEditor_Layout)
 
     def newPack(self):
         print("newPack Not Implemented.")
@@ -861,7 +843,7 @@ class PackControls(QWidget):
         packinfo_layout.addWidget(self.packTitle_label)
         PackConrols_layout.addLayout(packinfo_layout)
 
-        # Painting List
+        # Resource List
         self.listwidget = QListWidget(self)
         self.listwidget.setSelectionMode(3)
         self.listwidget.setContextMenuPolicy(3)
@@ -873,7 +855,7 @@ class PackControls(QWidget):
 
         # Control Buttons
         button_layout = QHBoxLayout()
-        self.add_button = QPushButton("Add Painting", self)
+        self.add_button = QPushButton("Add Resource", self)
         self.add_button.clicked.connect(self.writeImage)
         self.export_button = QPushButton("Export Pack", self)
         self.export_button.clicked.connect(self.exportPack)
@@ -896,9 +878,9 @@ class PackControls(QWidget):
         global_pos = self.listwidget.mapToGlobal(pos)
         item = self.listwidget.itemAt(pos)
         context_menu = QMenu(self)
-        delete_action = QAction("Delete Painting", self)
+        delete_action = QAction("Delete Resource", self)
         delete_action.triggered.connect(lambda: self.removeImage(item))
-        edit_action = QAction("Edit Painting", self)
+        edit_action = QAction("Edit Resource", self)
         edit_action.triggered.connect(lambda: self.editImage(item))
         context_menu.addAction(delete_action)
         context_menu.addAction(edit_action)
