@@ -1,3 +1,4 @@
 pillow
+pydub
 pyqt5
 requests

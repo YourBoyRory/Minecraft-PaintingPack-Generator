@@ -54,7 +54,7 @@ class PaintingStudio(QMainWindow):
         self.save_draft_action = QAction('Save', self)
         self.save_draft_action.triggered.connect(self.saveExisting)
         file_menu.addAction(self.save_draft_action)
-        
+
         edit_menu = menubar.addMenu('Edit')
         self.edit_pack_info = QAction('Edit Pack Info', self)
         self.edit_pack_info.triggered.connect(self.editPackInfo)
@@ -244,6 +244,9 @@ class PaintingStudio(QMainWindow):
 
     def setCurrentData(self, paintingName, paintingMetaData):
         self.paintingEditor.setCurrentData(paintingName, paintingMetaData)
+
+    def getCurrentAudioData(self):
+        return self.musicEditor.getCurrentAudioData()
 
     def getCurrentImageData(self):
         return self.paintingEditor.getCurrentImageData()
