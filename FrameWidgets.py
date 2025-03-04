@@ -638,14 +638,14 @@ class MusicEditor(QWidget):
         if mime_data.hasUrls():
             # Get the dropped file URL(s)
             urls = mime_data.urls()
-
             for url in urls:
                 file_path = url.toLocalFile()
                 if any(file_path.lower().endswith(ext) for ext in image_extensions):
-                    if self.texture_combo_box.currentText() == 'Custom':
-                        print(f"Image File Dropped: {file_path}")
-                        self.customDiscArtPath = file_path
-                        self.requestViewPortDraw()
+                    self.texture_combo_box.setCurrentText('Custom')
+                    print(f"Image File Dropped: {file_path}")
+                    self.customDiscArtPath = file_path
+                    self.requestViewPortDraw()
+                    self.parent.setButtonEnabled(True)
                 elif file_path.lower().endswith('.mp3'):
                     print(f"MP3 File Dropped: {file_path}")
                     mp3Data = AudioSegment.from_mp3(file_path)
@@ -677,13 +677,27 @@ class MusicEditor(QWidget):
         disc = self.disc_combo_box.currentText()
         discName = self.discs[disc]['file_name']
         scale = self.detail_spin_box.value()*16
+        pixmap = self.discArt.pixmap()
         size = (scale, scale)
         with Image.open(self.discArtPath) as img:
             img_resized = img.resize(size, Image.NEAREST)
             img_byte_arr = BytesIO()
             img_resized.save(img_byte_arr, format='PNG')
             img_byte_arr.seek(0)
-        return self.audioData, img_byte_arr, disc, discName
+        meta = {}
+        meta['disc_Name'] = discName
+        meta['texture'] = self.texture_combo_box.currentText()
+        meta['detail'] = self.detail_spin_box.value()
+        meta['scale'] = self.scale_combo_box.currentText()
+        title = self.title_combo_box.text()
+        if title == "":
+            title = self.title_combo_box.placeholderText()
+        author = self.author_combo_box.text()
+        if author == "":
+            author = self.author_combo_box.placeholderText()
+        meta['title'] = title
+        meta['author'] = author
+        return self.audioData, img_byte_arr, pixmap, disc, meta
 
     def showFileDialog(self):
         self.customDiscArtPath, _ = QFileDialog.getOpenFileName(self, 'Load Draft')
@@ -894,12 +908,27 @@ class PackControls(QWidget):
 
     def writeAudio(self):
         self.changesSaved = False
-        audioData, discArt, disc, discName = self.parent.getCurrentAudioData()
+        audioData, discArt, pixmap, disc, meta = self.parent.getCurrentAudioData()
+        discName = meta['disc_Name']
+        texture = meta['texture']
+        title = meta['title']
+        author = meta['author']
+        
+        
+        if texture == 'Custom':
+            detail = meta['detail']
+            scale = meta['scale']
+            footer = f"\nTexture: {texture}\nDetail: {detail}\nScale Method: {scale}"
+        else:
+            footer = f"Texture: {texture}"
 
         # Push art to pack
         self.pack_builder.addFile(f'assets/minecraft/textures/item/{discName.lower()}.png', discArt.read())
         self.pack_builder.addFile(f'assets/minecraft/sounds/records/{disc.lower()}.ogg', audioData.read())
         self.exportPack()
+        
+        # add to list
+        self.addToList(pixmap, f"{disc.title()}\nTitle: {title}\nAuthor:{author}\n{footer}")
 
 
     def writeImage(self):
@@ -922,14 +951,17 @@ class PackControls(QWidget):
         self.pack_builder.addFile(f'assets/minecraft/textures/painting/{paintingName}.png', image_bytes.read())
 
         # Add to Lists
-        item1 = QListWidgetItem(f"{paintingName.title()} ({size})\nFrame: {frameName.title()}\n\nDetail: {detail}x\nScale Method: {scale_method}\nBackground Color: {backgroundColor}")
-        item1.setIcon(QIcon(self.parent.getCurrentImage()))  # Set QPixmap as an icon
-        self.listwidget.addItem(item1)
-        self.listwidget.setIconSize(QSize(100, 100))
+        self.addToList(self.parent.getCurrentImage(), f"{paintingName.title()} ({size})\nFrame: {frameName.title()}\n\nDetail: {detail}x\nScale Method: {scale_method}\nBackground Color: {backgroundColor}")
         self.used_paintings[paintingName] = imageData[paintingName]
-
+        
         # Reset UI
         self.parent.getNextImage()
+
+    def addToList(self, image, entry):
+        item1 = QListWidgetItem(entry)
+        item1.setIcon(QIcon(image))  # Set QPixmap as an icon
+        self.listwidget.addItem(item1)
+        self.listwidget.setIconSize(QSize(100, 100))
 
     def exportPack(self):
         try:

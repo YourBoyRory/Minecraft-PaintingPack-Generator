@@ -30,6 +30,7 @@ class PaintingStudio(QMainWindow):
         self.setCentralWidget(self.central_widget)
         layout = QHBoxLayout(self)
         self.central_widget.setLayout(layout)
+        self.currentTab = 0
 
         # generated stuff
         self.setWindowTitle("Minecraft Painting Studio")
@@ -76,6 +77,7 @@ class PaintingStudio(QMainWindow):
 
         """Center Widget"""
         self.viewport = QTabWidget(self)
+        self.viewport.currentChanged.connect(self.on_tab_changed)
         self.paintingEditor = PaintingEditor(self)
         self.musicEditor = MusicEditor(self)
         self.viewport.addTab(self.paintingEditor, "Paintings Editor")
@@ -134,6 +136,8 @@ class PaintingStudio(QMainWindow):
                     new_draft['paintings'][painting]['background_color'] = data['background_color']
             self.packConrols.loadDraft(new_draft)
 
+    def on_tab_changed(self, index):
+        self.currentTab = index
 
     def prog_help(self):
         dialog = HelpDialog(self)
