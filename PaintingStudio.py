@@ -54,7 +54,7 @@ class PaintingStudio(QMainWindow):
         self.save_draft_action = QAction('Save', self)
         self.save_draft_action.triggered.connect(self.saveExisting)
         file_menu.addAction(self.save_draft_action)
-        
+
         edit_menu = menubar.addMenu('Edit')
         self.edit_pack_info = QAction('Edit Pack Info', self)
         self.edit_pack_info.triggered.connect(self.editPackInfo)
@@ -153,6 +153,7 @@ class PaintingStudio(QMainWindow):
                 }
             }
             self.packConrols.setPackInfo(packData)
+            self.paintingEditor.reset()
 
 
     def newPack(self):
@@ -172,7 +173,6 @@ class PaintingStudio(QMainWindow):
         # Check if the dialog was accepted
         if dialog.exec_() == QDialog.Accepted:
             title, description, number, icon = dialog.get_data()
-            self.paintingEditor.newPack()
             #remove self. later
             self.packName = title
             packData = {
@@ -186,6 +186,7 @@ class PaintingStudio(QMainWindow):
                 }
             }
             self.packConrols.reset(packData)
+            self.paintingEditor.newPack()
             self.edit_pack_info.setEnabled(self.packConrols.packCreated)
 
     ## Wrappers ##
@@ -223,6 +224,7 @@ class PaintingStudio(QMainWindow):
                 QMessageBox.warning(self, "Draft Read Error", f"Could not parse the draft meta data, it may have been made in a older version or is currupted.\n\nPlease set the meta data now")
                 self.newPack()
         self.packConrols.openDraft(file)
+        self.paintingEditor.reset()
 
     def saveToFile(self):
         self.packConrols.saveDraft()

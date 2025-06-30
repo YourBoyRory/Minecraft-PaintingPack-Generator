@@ -222,16 +222,21 @@ class InputDialog(QDialog):
         layout = QFormLayout()
         packFormatLayout = QHBoxLayout()
         if not currData:
+            self.editMode = False
             currData = {
                 'title': "PaintingPack",
                 'icon': None,
                 'meta': {
                     "pack": {
                         "description": "My Painting Pack",
-                        "pack_format": 46
+                        "pack_format": 64
                     }
                 }
             }
+            self.format_limit = 4
+        else:
+            self.editMode = True
+            self.format_limit = currData['meta']['pack']['pack_format']
 
         # Create input fields
         self.title_input = QLineEdit(currData['title'])
@@ -240,7 +245,7 @@ class InputDialog(QDialog):
         self.description_input.textChanged.connect(self.feild_validation)
         self.number_input = QSpinBox()
         self.number_input.setValue(currData['meta']['pack']['pack_format'])      # Most up to date pact format as of relase
-        self.number_input.setRange(4, 65535)  # Surely they add more paintings before Format 65535
+        self.number_input.setRange(self.format_limit, 65535)  # Surely they add more paintings before Format 65535
         packFormatLayout.addWidget(self.number_input)
         self.packFormatLink = QPushButton("Help")
         packFormatLayout.addWidget(self.packFormatLink)
@@ -273,14 +278,21 @@ class InputDialog(QDialog):
 
         # Connect buttons to functions
         self.packFormatLink.clicked.connect(self.packFormat_Info)
-        self.ok_button.clicked.connect(self.accept)
+        self.ok_button.clicked.connect(self.verify_changes)
         self.cancel_button.clicked.connect(self.reject)
 
     def packFormat_Info(self):
         webbrowser.open_new_tab("https://minecraft.wiki/w/Pack_format#List_of_resource_pack_formats")
 
+    def verify_changes(self):
+        if self.editMode and self.number_input.value() != self.format_limit:
+            reply = QMessageBox.warning(self, 'Some Changes are Permanemt', 'Pack format cannot be downgraded once set.\nAre you sure you want to proceed?', QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if reply == QMessageBox.Yes:
+                self.accept()
+        else:
+            self.accept()
+
     def get_data(self):
-        # Return the data entered by the user
         return self.title_input.text(), self.description_input.text(), self.number_input.value(), self.icon
 
     def feild_validation(self):

@@ -109,8 +109,8 @@ class PaintingEditor(QWidget):
         init_silder_value = 500
         self.view_size = int(100 + (init_silder_value / 500) * 300)
 
-        with open(self.resource_path('paintings.json'), 'r') as file:
-            self.paintings = json.load(file)
+        self.paintings = {}
+
         self.file_path_stack = []
         self.drawThread = QTimer(self)
         self.drawThread.timeout.connect(self.forceViewPortDraw)
@@ -233,11 +233,32 @@ class PaintingEditor(QWidget):
         PaintingEditor_Layout.addWidget(ToolBar)
         self.setLayout(PaintingEditor_Layout)
 
-    def newPack(self):
-        self.painting_maker = PaintingGenerator()
-        self.size_combo_box.clear()
+    def loadPaintings(self):
+        try:
+            pack_format = self.packConrols.packData['meta']['pack']['pack_format']
+            self.size_combo_box.clear()
+        except:
+            print("format unset defaulting to demo mode")
+            pack_format = 65535 # idk man
+        with open(self.resource_path('paintings.json'), 'r') as file:
+            json_in = json.load(file)
+            master_list = {}
+            for format_num, data in json_in.items():
+                if int(format_num) <= int(pack_format):
+                    print(format_num, pack_format)
+                    for size, paint_list in data.items():
+                        if size in master_list:
+                            master_list[size] += paint_list
+                        else:
+                            master_list[size] = paint_list
+            self.paintings = dict(sorted(master_list.items()))
+            print(self.paintings)
         for key in self.paintings:
             self.size_combo_box.addItem(key)
+
+    def newPack(self):
+        self.painting_maker = PaintingGenerator()
+        self.loadPaintings()
         self.updateComboBox()
 
     def dropEvent(self, event):
@@ -257,8 +278,7 @@ class PaintingEditor(QWidget):
         self.getNextImage()
 
     def reset(self):
-        for key in self.paintings:
-            self.size_combo_box.addItem(key)
+        self.loadPaintings()
         self.updateComboBox()
         self.parent.setButtonEnabled(False)
         self.viewPort.displayText("Drop image here to customize your painting")
@@ -578,7 +598,7 @@ class PackControls(QWidget):
             pixmap = QPixmap(self.resource_path("pack.png"))
         self.packIcon_label.setPixmap(pixmap.scaled(QSize(100, 100), aspectRatioMode=1))
         self.packTitle_label.setText(f"{self.packName}\nFormat: {formatNumber}\n\n{packDescription}")
-        
+
     def removeImage(self, item):
         self.changesSaved = False
         try:
