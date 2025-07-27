@@ -4,7 +4,7 @@ import sys
 import requests
 import re
 from pathlib import Path
-from PyQt5.QtCore import Qt, QUrl, QSize, QTimer, QStringListModel, pyqtSignal
+from PyQt5.QtCore import Qt, QUrl, QSize, QTimer, QStringListModel, pyqtSignal, QThread
 from PyQt5.QtGui import QPixmap, QImage, QIcon, QColor, QFont, QKeySequence
 from PyQt5.QtWidgets import QScrollArea, QSlider, QMainWindow, QMessageBox, QMenuBar, QDialog, QColorDialog, QFormLayout, QLineEdit, QMenu, QAction, QListWidgetItem, QListWidget, QTabWidget, QApplication, QWidget, QVBoxLayout, QComboBox, QLabel, QFrame, QHBoxLayout, QFileDialog, QSizePolicy, QSpinBox, QPushButton
 from PyQt5.QtWidgets import QApplication, QStyleFactory, QProgressBar, QShortcut
@@ -15,12 +15,62 @@ from ResourcePackBuilder import ResourcePackBuilder
 from FrameDialog import LoadingDialog, InputDialog, HelpDialog, BatchEditDialog, SaveChangesDialog, MessageDialog
 from FrameWidgets import PackControls, PaintingEditor
 
+VER_STRING = "v1.5.0"
+
 def ResourcePath(folder, file):
     if getattr(sys, 'frozen', False):
         base_path = sys._MEIPASS
     else:
         base_path = os.path.dirname(__file__)
     return os.path.join(base_path, folder, file)
+
+class UpdateCheckWorker(QThread):
+    progress = pyqtSignal(str, str, object, str, int)
+
+    def setAutoUpdateMode(self, autoCheckup=True):
+        self.autoCheckup = autoCheckup
+
+    def run(self):
+        self.progress.emit("", "", None, "Checking for updates...", 2000)
+        QApplication.processEvents()
+        token=False
+        url = f"https://api.github.com/repos/YourBoyRory/Minecraft-PaintingPack-Generator/releases/latest"
+        headers = {"Authorization": f"token {token}"} if token else {}
+
+        try:
+            response = requests.get(url, headers=headers)
+            status_code = response.status_code
+        except:
+            status_code = 418
+
+        if status_code == 200:
+            release = response.json()
+            latest_url = release['html_url']
+            latest_verStr = release['tag_name']
+            latest_body = release['body']
+            latest_version = tuple(map(int, re.sub(r'[^0-9.]', '', latest_verStr).split(".")))
+            current_version = tuple(map(int, re.sub(r'[^0-9.]', '', VER_STRING).split(".")))
+            if latest_version > current_version:
+                msg_title="Update Available"
+                msg_body=f"""<b>A new version is available!</b><br>
+                <p style=\"color: #A6A6A6;\">{latest_body.split('\r\n',1)[1].replace('\r\n','<br>')}</p>
+                Download {latest_verStr}:<br> <a href='{latest_url}'>{latest_url}</a>
+                """
+                self.progress.emit(msg_title, msg_body, QMessageBox.Information, "Update Available! [Help] > [Check for Updates]", 6000)
+            else:
+                self.progress.emit("","", None, "You are up to date!", 2000)
+        else:
+            if not self.autoCheckup:
+                msg_title="Update Check Failed"
+                msg_body=f"""<b>Update Check Failed!</b><br><br>
+                    Failed to check updates, maybe you have no internet?
+                    <p style=\"color: #A6A6A6;\">HTTP Status: {status_code}</p>
+                """
+                self.progress.emit(msg_title, msg_body, QMessageBox.Warning, f"Update Check Failed - Status: {status_code}", 6000)
+            else:
+                self.progress.emit("","", None, f"Update Check Failed - Status: {status_code}", 6000)
+        if self.autoCheckup:
+            self.autoCheckup = False
 
 class PaintingStudio(QMainWindow):
 
@@ -33,10 +83,13 @@ class PaintingStudio(QMainWindow):
         layout = QHBoxLayout(self)
         self.central_widget.setLayout(layout)
 
-        self.VER_STRING = "v1.5.0"
+        # Update Thread
+        self.updateChecker = UpdateCheckWorker()
+        self.updateChecker.progress.connect(self.setUpdateStatus)
+        self.updateChecker.setAutoUpdateMode(True)
 
         # generated stuff
-        self.setWindowTitle(f"Minecraft Painting Studio - {self.VER_STRING}")
+        self.setWindowTitle(f"Minecraft Painting Studio - {VER_STRING}")
         self.setWindowIcon(QIcon(ResourcePath("assets", "icon.png")))
         self.setGeometry(100, 100, 1000, 600)
 
@@ -118,44 +171,16 @@ class PaintingStudio(QMainWindow):
 
     ## Menu Bar ##
 
-    def checkForUpdates(self, autoCheckup=False):
-        self.notify("Checking for updates...")
-        token=False
-        url = f"https://api.github.com/repos/YourBoyRory/Minecraft-PaintingPack-Generator/releases/latest"
-        headers = {"Authorization": f"token {token}"} if token else {}
+    def setUpdateStatus(self, status_window_title, status_window_body, status_window_type, status_toast, status_toast_wait):
+        if status_toast != "":
+            self.notify(status_toast, status_toast_wait)
+        if status_window_title != "" or status_window_body != "":
+            msg_title=status_window_title
+            msg_body=status_window_body
+            msg_box = MessageDialog(self, msg_body, msg_title, status_window_type)
 
-        try:
-            response = requests.get(url, headers=headers)
-            status_code = response.status_code
-        except:
-            status_code = 418
-
-        if status_code == 200:
-            release = response.json()
-            latest_url = release['html_url']
-            latest_verStr = release['tag_name']
-            latest_body = release['body']
-            latest_version = tuple(map(int, re.sub(r'[^0-9.]', '', latest_verStr).split(".")))
-            current_version = tuple(map(int, re.sub(r'[^0-9.]', '', self.VER_STRING).split(".")))
-            if latest_version > current_version:
-                self.notify(f"Update Available! [Help] > [Check for Updates]", 8000)
-                msg_title="Update Available"
-                msg_body=f"""<b>A new version is available!</b><br>
-                    <p style=\"color: #A6A6A6;\">{latest_body.split('\r\n',1)[1].replace('\r\n','<br>')}</p>
-                    Download {latest_verStr}:<br> <a href='{latest_url}'>{latest_url}</a>
-                """
-                msg_box = MessageDialog(self, msg_body, msg_title, QMessageBox.Information)
-            else:
-                self.notify("You are up to date!")
-        else:
-            self.notify(f"Update Check Failed - Status: {status_code}", 4000)
-            if not autoCheckup:
-                msg_title="Update Check Failed"
-                msg_body=f"""<b>Update Check Failed!</b><br><br>
-                    Failed to check updates, maybe you have no internet?
-                    <p style=\"color: #A6A6A6;\">HTTP Status: {status_code}</p>
-                """
-                msg_box = MessageDialog(self, msg_body, msg_title, QMessageBox.Warning)
+    def checkForUpdates(self):
+        self.updateChecker.start()
 
     def batchEdit(self):
         dialog = BatchEditDialog(self)
@@ -356,12 +381,12 @@ if __name__ == "__main__":
     window = PaintingStudio()
     #window.setObjectName("Frame")
     window.show()
-    window.checkForUpdates(True)
     try:
         if len(sys.argv) > 1:
             print(sys.argv[1])
             window.loadFromFile(sys.argv[1])
         else:
+            window.checkForUpdates()
             window.newPack()
     except:
         window.newPack()
