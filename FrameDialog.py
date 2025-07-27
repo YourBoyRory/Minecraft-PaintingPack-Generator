@@ -16,6 +16,17 @@ class SaveChangesDialog():
     def getReply(self):
         return self.reply
 
+class MessageDialog(QMessageBox):
+    def __init__(self, parent, body, title="Warning", icon=QMessageBox.Warning):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setIcon(icon)
+        self.setTextFormat(Qt.RichText)
+        self.setText(body)
+        self.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        self.setStandardButtons(QMessageBox.Ok)
+        self.exec_()
+
 class BatchEditDialog(QDialog):
     def __init__(self, parent):
         super().__init__(parent)
@@ -212,6 +223,7 @@ class LoadingDialog(QDialog):
         self.close()  # Close the dialog
 
 class InputDialog(QDialog):
+
     def __init__(self, parent, currData=False):
         super().__init__(parent)
         self.icon = None

@@ -1,6 +1,8 @@
 import os
 import json
 import sys
+import requests
+import re
 from pathlib import Path
 from PyQt5.QtCore import Qt, QUrl, QSize, QTimer, QStringListModel, pyqtSignal
 from PyQt5.QtGui import QPixmap, QImage, QIcon, QColor, QFont, QKeySequence
@@ -10,7 +12,7 @@ from io import BytesIO
 from PIL import Image
 from PaintingGenerator import PaintingGenerator
 from ResourcePackBuilder import ResourcePackBuilder
-from FrameDialog import LoadingDialog, InputDialog, HelpDialog, BatchEditDialog, SaveChangesDialog
+from FrameDialog import LoadingDialog, InputDialog, HelpDialog, BatchEditDialog, SaveChangesDialog, MessageDialog
 from FrameWidgets import PackControls, PaintingEditor
 
 def ResourcePath(folder, file):
@@ -31,8 +33,10 @@ class PaintingStudio(QMainWindow):
         layout = QHBoxLayout(self)
         self.central_widget.setLayout(layout)
 
+        self.VER_STRING = "v1.5.0"
+
         # generated stuff
-        self.setWindowTitle("Minecraft Painting Studio")
+        self.setWindowTitle(f"Minecraft Painting Studio - {self.VER_STRING}")
         self.setWindowIcon(QIcon(ResourcePath("assets", "icon.png")))
         self.setGeometry(100, 100, 1000, 600)
 
@@ -70,6 +74,9 @@ class PaintingStudio(QMainWindow):
         help_action = QAction('Help', self)
         help_action.triggered.connect(self.prog_help)
         help_menu.addAction(help_action)
+        update_action = QAction('Check for Updates', self)
+        update_action.triggered.connect(self.checkForUpdates)
+        help_menu.addAction(update_action)
 
         """ Left Bar """
         self.packConrols = PackControls(self)
@@ -110,6 +117,45 @@ class PaintingStudio(QMainWindow):
         self.edit_pack_info.setEnabled(self.packConrols.packCreated)
 
     ## Menu Bar ##
+
+    def checkForUpdates(self, autoCheckup=False):
+        self.notify("Checking for updates...")
+        token=False
+        url = f"https://api.github.com/repos/YourBoyRory/Minecraft-PaintingPack-Generator/releases/latest"
+        headers = {"Authorization": f"token {token}"} if token else {}
+
+        try:
+            response = requests.get(url, headers=headers)
+            status_code = response.status_code
+        except:
+            status_code = 418
+
+        if status_code == 200:
+            release = response.json()
+            latest_url = release['html_url']
+            latest_verStr = release['tag_name']
+            latest_body = release['body']
+            latest_version = tuple(map(int, re.sub(r'[^0-9.]', '', latest_verStr).split(".")))
+            current_version = tuple(map(int, re.sub(r'[^0-9.]', '', self.VER_STRING).split(".")))
+            if latest_version > current_version:
+                self.notify(f"Update Available! [Help] > [Check for Updates]", 8000)
+                msg_title="Update Available"
+                msg_body=f"""<b>A new version is available!</b><br>
+                    <p style=\"color: #A6A6A6;\">{latest_body.split('\r\n',1)[1].replace('\r\n','<br>')}</p>
+                    Download {latest_verStr}:<br> <a href='{latest_url}'>{latest_url}</a>
+                """
+                msg_box = MessageDialog(self, msg_body, msg_title, QMessageBox.Information)
+            else:
+                self.notify("You are up to date!")
+        else:
+            self.notify(f"Update Check Failed - Status: {status_code}", 4000)
+            if not autoCheckup:
+                msg_title="Update Check Failed"
+                msg_body=f"""<b>Update Check Failed!</b><br><br>
+                    Failed to check updates, maybe you have no internet?
+                    <p style=\"color: #A6A6A6;\">HTTP Status: {status_code}</p>
+                """
+                msg_box = MessageDialog(self, msg_body, msg_title, QMessageBox.Warning)
 
     def batchEdit(self):
         dialog = BatchEditDialog(self)
@@ -226,28 +272,46 @@ class PaintingStudio(QMainWindow):
         self.packConrols.openDraft(file)
         self.paintingEditor.reset()
 
+    # =============================================================
+
+    def generateImage(self, image=None, options=None):
+        self.paintingEditor.generateImage(self, image, options)
+
+    def notify(self, msg, interval=2000):
+        self.paintingEditor.notify(msg, interval)
+
+    def addPainting(self, data):
+        self.paintingEditor.optionsPanel.addPainting(data)
+
+    def removePainting(self, paintingName):
+        self.paintingEditor.optionsPanel.removePainting(paintingName)
+
+    def getCurrentImage(self, storage_type):
+        return self.paintingEditor.getCurrentImage(storage_type)
+
+    def setData(self, data=None):
+        self.paintingEditor.optionsPanel.setData(data)
+
+    def setCurrentImage(self, file_path):
+        self.paintingEditor.setCurrentImage(file_path)
+
+    # =============================================================
+
     def saveToFile(self):
         self.packConrols.saveDraft()
 
     def saveExisting(self):
         if self.save_draft_action.isEnabled():
             self.packConrols.saveDraft(self.packConrols.saveFile)
-            #self.paintingEditor.notify("Saved!")
 
     def requestViewPortDraw(self):
         self.paintingEditor.requestViewPortDraw()
-
-    def setCurrentImage(self, file_path):
-        self.paintingEditor.setCurrentImage(file_path)
 
     def setCurrentData(self, paintingName, paintingMetaData):
         self.paintingEditor.setCurrentData(paintingName, paintingMetaData)
 
     def getCurrentImageData(self):
         return self.paintingEditor.getCurrentImageData()
-
-    def getCurrentImage(self):
-        return self.paintingEditor.getCurrentImage()
 
     def setLockStatus(self, status):
         self.paintingEditor.lock = status
@@ -292,6 +356,7 @@ if __name__ == "__main__":
     window = PaintingStudio()
     #window.setObjectName("Frame")
     window.show()
+    window.checkForUpdates(True)
     try:
         if len(sys.argv) > 1:
             print(sys.argv[1])
