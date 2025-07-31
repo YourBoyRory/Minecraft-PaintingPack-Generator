@@ -438,19 +438,23 @@ class PaintingEditor(QWidget):
 
     def dropEvent(self, event):
         # Get the dropped file path
-        for file in event.mimeData().urls():
-            ext = Path(file.toLocalFile()).name.split(".")[1].lower()
-            if ext == "pson" or ext == "json":
-                self.parent.loadFromFile(file.toLocalFile())
-                return
-            if self.packConrols.packCreated == True:
-                self.file_path_stack.append(file)
-                self.init_stack_count = len(self.file_path_stack)
-            else:
-                QMessageBox.information(self, "Pack not Created", f"Please create a pack before importing images.")
-                return
-        self.lock = False
-        self.getNextImage()
+        try:
+            for file in event.mimeData().urls():
+                ext = Path(file.toLocalFile()).name.split(".")[1].lower()
+                if ext == "pson" or ext == "json":
+                    self.parent.loadFromFile(file.toLocalFile())
+                    return
+                if self.packConrols.packCreated == True:
+                    self.file_path_stack.append(file)
+                    self.init_stack_count = len(self.file_path_stack)
+                else:
+                    QMessageBox.information(self, "Pack not Created", f"Please create a pack before importing images.")
+                    return
+            self.lock = False
+            self.getNextImage()
+        except Exception as e:
+            self.viewPort.displayText(f"Failed to open file: {str(e)}")
+            traceback.print_exc()
 
     def notify(self, msg, interval=2000):
         if self.notifyTimer.isActive():

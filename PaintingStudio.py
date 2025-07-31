@@ -355,12 +355,11 @@ class PaintingStudio(QMainWindow):
 def set_theme(app):
     desktop = ""
     try:
-        gtk_based = [
-            "gnome", "lxde", "mate",
-            "cinnamon", "ubuntu"
+        qt_based = [
+            "plasma"
         ]
         desktop = os.environ.get('DESKTOP_SESSION')
-        if any(sub in desktop for sub in gtk_based):
+        if not any(sub in desktop for sub in gtk_based):
             app.setStyle("Adwaita-Dark")
     except:
         pass
