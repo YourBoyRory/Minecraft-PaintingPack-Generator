@@ -366,6 +366,7 @@ def set_theme(app):
         print(f"Failed to get env: {e}")
         pass
     current_style = app.style().objectName()
+    print(f"desktop detected as: '{desktop}'")
     if desktop == "" or current_style == "windowsvista":
         desktop = "windows"
         try:
