@@ -361,9 +361,10 @@ def set_theme(app):
         desktop = os.environ.get('DESKTOP_SESSION')
         if not any(sub in desktop for sub in qt_based):
             available_styles = QStyleFactory.keys()
-            print(available_styles)
-            #app.setStyle("Adwaita-Dark")
-            #app.setStyle("qt5ct-style")
+            if "Adwaita-Dark" in available_styles:
+                app.setStyle("Adwaita-Dark")
+            else:
+                desktop = ""
     except Exception as e:
         traceback.print_exc()
         print(f"Failed to get env: {e}")

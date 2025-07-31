@@ -10,6 +10,7 @@ sudo cp -r ./src /opt/MCPaintingStudio/
 # install venv and dependecies
 sudo python -m venv /opt/MCPaintingStudio/venv
 source /opt/MCPaintingStudio/venv/bin/activate
+sudo /opt/MCPaintingStudio/venv/bin/python -m pip install --upgrade pip
 sudo /opt/MCPaintingStudio/venv/bin/pip install -r requirements.txt
 
 # Install Theme
