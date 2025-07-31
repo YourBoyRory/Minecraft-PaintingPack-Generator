@@ -3,6 +3,7 @@ import json
 import sys
 import requests
 import re
+import traceback
 from pathlib import Path
 from PyQt5.QtCore import Qt, QUrl, QSize, QTimer, QStringListModel, pyqtSignal, QThread
 from PyQt5.QtGui import QPixmap, QImage, QIcon, QColor, QFont, QKeySequence
@@ -15,7 +16,9 @@ from ResourcePackBuilder import ResourcePackBuilder
 from FrameDialog import LoadingDialog, InputDialog, HelpDialog, BatchEditDialog, SaveChangesDialog, MessageDialog
 from FrameWidgets import PackControls, PaintingEditor
 
+# Version Information
 VER_STRING = "v1.5.0"
+PSON_VER = 1
 
 def ResourcePath(folder, file):
     if getattr(sys, 'frozen', False):
@@ -31,7 +34,7 @@ class UpdateCheckWorker(QThread):
         self.autoCheckup = autoCheckup
 
     def run(self):
-        self.progress.emit("", "", None, "Checking for updates...", 2000)
+        self.progress.emit("", "", None, "Checking for updates...", 15000)
         QApplication.processEvents()
         token=False
         url = f"https://api.github.com/repos/YourBoyRory/Minecraft-PaintingPack-Generator/releases/latest"
@@ -100,7 +103,7 @@ class PaintingStudio(QMainWindow):
         #File Menu
         file_menu = menubar.addMenu('File')
         new_pack_action = QAction('New Pack', self)
-        new_pack_action.triggered.connect(self.newPack)
+        new_pack_action.triggered.connect(self.makeNewPack)
         file_menu.addAction(new_pack_action)
         open_draft_action = QAction('Open Draft', self)
         open_draft_action.triggered.connect(self.loadFromFile)
@@ -162,13 +165,6 @@ class PaintingStudio(QMainWindow):
         else:
             event.ignore()
 
-    def initPack(self, file):
-        with open(file) as f:
-            draft = json.load(f)
-        self.paintingEditor.newPack()
-        self.packConrols.reset(draft['pson'])
-        self.edit_pack_info.setEnabled(self.packConrols.packCreated)
-
     ## Menu Bar ##
 
     def setUpdateStatus(self, status_window_title, status_window_body, status_window_type, status_toast, status_toast_wait):
@@ -201,19 +197,25 @@ class PaintingStudio(QMainWindow):
                     new_draft['paintings'][painting]['background_color'] = data['background_color']
             self.packConrols.loadDraft(new_draft)
 
+    def convert_pson(self):
+        pson = {}
+        self.packConrols.convert_pson(pson)
 
     def prog_help(self):
         dialog = HelpDialog(self)
         dialog.exec_()
 
-    def editPackInfo(self):
-        dialog = InputDialog(self, self.packConrols.packData)
+    def editPackInfo(self, packData=None):
+        if packData == None:
+            packData = self.packConrols.packData
+        dialog = InputDialog(self, packData)
         if dialog.exec_() == QDialog.Accepted:
             title, description, number, icon = dialog.get_data()
             self.paintingEditor.newPack()
             #remove self. later
             self.packName = title
-            packData = {
+            new_packData = {
+                'pson_version': PSON_VER,
                 'title': title,
                 'icon': icon,
                 'meta': {
@@ -223,11 +225,11 @@ class PaintingStudio(QMainWindow):
                     }
                 }
             }
-            self.packConrols.setPackInfo(packData)
+            self.packConrols.setPackInfo(new_packData)
             self.paintingEditor.reset()
 
 
-    def newPack(self):
+    def makeNewPack(self):
         dialog = SaveChangesDialog(self, self.packConrols.changesSaved)
         reply = dialog.getReply()
         if reply == QMessageBox.Yes:
@@ -247,6 +249,7 @@ class PaintingStudio(QMainWindow):
             #remove self. later
             self.packName = title
             packData = {
+                'pson_version': PSON_VER,
                 'title': title,
                 'icon': icon,
                 'meta': {
@@ -256,14 +259,14 @@ class PaintingStudio(QMainWindow):
                     }
                 }
             }
-            self.packConrols.reset(packData)
-            self.paintingEditor.newPack()
+            self.newPack(packData)
             self.edit_pack_info.setEnabled(self.packConrols.packCreated)
 
     ## Wrappers ##
 
-    def reset(self):
-        self.paintingEditor.reset()
+    def newPack(self, packData=False):
+        self.packConrols.newPack(packData)
+        self.paintingEditor.newPack()
 
     def setButtonEnabled(self, value):
         listFull = self.packConrols.updateButtonEnabled()
@@ -288,19 +291,16 @@ class PaintingStudio(QMainWindow):
         directory = os.path.join(os.path.expanduser("~"), "Documents")
         if not file:
             file, _ = QFileDialog.getOpenFileName(self, 'Load Draft', directory, 'PaintingStudio Draft (*.pson *.json)')
-        if file:
-            try:
-                self.initPack(file)
-            except:
-                QMessageBox.warning(self, "Draft Read Error", f"Could not parse the draft meta data, it may have been made in a older version or is currupted.\n\nPlease set the meta data now")
-                self.newPack()
-        self.packConrols.openDraft(file)
-        self.paintingEditor.reset()
+        try:
+            self.packConrols.openDraft(file)
+        except Exception as e:
+            traceback.print_exc()
+            QMessageBox.warning(self, "Draft Load Error", f"An error occured when reading the draft's data:\n\n{e}")
 
     # =============================================================
 
-    def generateImage(self, image=None, options=None):
-        self.paintingEditor.generateImage(self, image, options)
+    def generateImage(self, image=None, options=None, silentDraw=False):
+        self.paintingEditor.generateImage(image, options, silentDraw)
 
     def notify(self, msg, interval=2000):
         self.paintingEditor.notify(msg, interval)
@@ -314,11 +314,11 @@ class PaintingStudio(QMainWindow):
     def getCurrentImage(self, storage_type):
         return self.paintingEditor.getCurrentImage(storage_type)
 
-    def setData(self, data=None):
-        self.paintingEditor.optionsPanel.setData(data)
+    def setData(self, data={}):
+        self.paintingEditor.setData(data)
 
     def setCurrentImage(self, file_path):
-        self.paintingEditor.setCurrentImage(file_path)
+        return self.paintingEditor.setCurrentImage(file_path)
 
     # =============================================================
 
@@ -387,8 +387,8 @@ if __name__ == "__main__":
             window.loadFromFile(sys.argv[1])
         else:
             window.checkForUpdates()
-            window.newPack()
+            window.makeNewPack()
     except:
-        window.newPack()
+        window.makeNewPack()
         print("Draft too old or failed to parse")
     sys.exit(app.exec_())

@@ -8,6 +8,7 @@ from ResourcePackBuilder import ResourcePackBuilder
 from pathlib import Path
 from io import BytesIO
 from PIL import Image
+import shutil
 import hashlib
 import traceback
 import platform
@@ -26,9 +27,13 @@ class ViewPort(QGraphicsView):
         self.minZoom = 0.1
         self.maxZoom = 3.0
         self.setAcceptDrops(True)
+        self.displayText("Drop image here to customize your painting")
 
         # File storages types, because im stupid can cant figure out how to convert between
         self.currentImage = None
+
+    def newPack(self):
+        self.displayText("Drop image here to customize your painting")
 
     def getCurrentImage(self):
         return self.currentImage
@@ -91,6 +96,7 @@ class ViewPort(QGraphicsView):
 
     def displayText(self, text):
         self.displayingImage = False
+        self.currentImage = None
         self.resetTransform()
         self.setDragMode(QGraphicsView.NoDrag)
         # Create and add text item to the scene
@@ -220,8 +226,10 @@ class OptionsPanel(QWidget):
 
         self.lock = False
 
-    def reset(self, paintings):
+    def newPack(self, paintings):
+        self.used_paintings = []
         self.paintings = paintings
+        self.lock = False
         self.size_combo_box.clear()
         for key in self.paintings:
             self.size_combo_box.addItem(key)
@@ -230,17 +238,14 @@ class OptionsPanel(QWidget):
     def getData(self):
         return self.options
 
-    def setData(self, data=None):
-        self.lock = True
-        if data != None:
-            self.options = data
-        self.detail_spin_box.setValue(self.options["detail"])
-        self.scale_combo_box.setCurrentText(self.options["scale_method"])
-        self.size_combo_box.setCurrentText(self.options["size"])
-        self.painting_combo_box.setCurrentText(self.options["paintingName"])
-        self.frame_combo_box.setCurrentText(self.options["frameName"])
-        self.lock = False
-        self.updateComboBox()
+    def setData(self, data={}):
+        new_options = self.options | data
+        self.detail_spin_box.setValue(new_options["detail"])
+        self.scale_combo_box.setCurrentText(new_options["scale_method"])
+        self.size_combo_box.setCurrentText(new_options["size"])
+        self.painting_combo_box.setCurrentText(new_options["paintingName"])
+        if "frameName" in data:
+            self.frame_combo_box.setCurrentText(new_options["frameName"])
 
     def addPainting(self, data):
         size = data['size']
@@ -312,6 +317,7 @@ class OptionsPanel(QWidget):
         self.options['size'] = self.size_combo_box.currentText()
         if not self.lock:
             self.updateComboBox()
+            self.updateFrameComboBox()
             self.parent.requestViewPortDraw()
 
     def updatePainting(self):
@@ -345,6 +351,7 @@ class PaintingEditor(QWidget):
         self.notifyTimer.setSingleShot(True)
 
         self.currentBigImage = None
+        self.art_url = None
 
         init_silder_value = 500
         self.view_size = int(100 + (init_silder_value / 500) * 300)
@@ -422,7 +429,12 @@ class PaintingEditor(QWidget):
 
     def newPack(self):
         self.painting_maker = PaintingGenerator()
-        self.reset()
+        self.optionsPanel.newPack(self.loadPaintings())
+        self.viewPort.newPack()
+        self.parent.setButtonEnabled(False)
+        self.setToolbarText("")
+        self.view_size = 400
+        self.file_path_stack.clear()
 
     def dropEvent(self, event):
         # Get the dropped file path
@@ -440,20 +452,14 @@ class PaintingEditor(QWidget):
         self.lock = False
         self.getNextImage()
 
-    def reset(self):
-        self.parent.setButtonEnabled(False)
-        self.optionsPanel.reset(self.loadPaintings())
-        self.viewPort.displayText("Drop image here to customize your painting")
-        self.setToolbarText("")
-        self.view_size = 400
-
     def notify(self, msg, interval=2000):
         if self.notifyTimer.isActive():
             self.notifyTimer.stop()
         self.notifyTimer = QTimer()
         self.notifyTimer.setSingleShot(True)
         self.path_label.setText(msg)
-        self.notifyTimer.setInterval(interval)
+        if interval != None:
+            self.notifyTimer.setInterval(interval)
         self.notifyTimer.timeout.connect(lambda: self.setToolbarText())
         self.notifyTimer.start()
 
@@ -471,13 +477,18 @@ class PaintingEditor(QWidget):
         self.view_slider.setEnabled(value)
         return
 
+    def setData(self, data={}):
+        if 'file_path' in data:
+            self.art_url = data['file_path']
+        self.optionsPanel.setData(data)
+
     def setCurrentImage(self, file_path):
         # Put loaded image on the file stack
         self.file_path_stack.append(QUrl(file_path))
         self.init_stack_count = len(self.file_path_stack)
         # Process image
         self.lock = False
-        self.getNextImage()
+        return self.getNextImage()
 
     def getCurrentImageData(self):
         options_data = self.optionsPanel.getData()
@@ -504,11 +515,10 @@ class PaintingEditor(QWidget):
                     self.art_path = url.toLocalFile()
                     imageLoad = self.art_path
                     self.art_url = url.toString()
-
                 file_name = Path(self.art_path).name.split(".")[0].lower()
+                self.autoSetComboBoxes(file_name)
                 self.generateImage(imageLoad)
                 self.viewPort.updateViewPort()
-                self.autoSetComboBoxes(file_name)
                 curr = self.init_stack_count-len(self.file_path_stack)
                 self.setToolbarText(f"File: [{curr}/{self.init_stack_count}] - {self.art_path}")
                 self.parent.setButtonEnabled(True)
@@ -517,22 +527,24 @@ class PaintingEditor(QWidget):
                 self.viewPort.displayText(f"Failed to open image: {str(e)}")
                 traceback.print_exc()
                 self.setToolbarText(" ")
+                return False
         else:
             self.init_stack_count = 0
-            print("Stack is empty.")
+            #print("Stack is empty.")
             self.lock = True
             #self.updateComboBox()
             self.parent.setButtonEnabled(False)
             self.viewPort.displayText("Drop Next image here")
             self.setToolbarText(" ")
+        return True
 
-    def generateImage(self, image=None, options=None):
+    def generateImage(self, image=None, options=None, silentDraw=False):
         # Load image
         if image != None:
             self.currentBigImage = Image.open(image)
         # Getting Options
         if options == None:
-            options = self.optionsPanel.options
+            options = self.optionsPanel.getData()
         detail = options['detail']
         scale_method = options['scale_method']
         size = options['size']
@@ -549,7 +561,8 @@ class PaintingEditor(QWidget):
 
         currentImage = self.painting_maker.makePaiting(detail, scale_method, background_color, frameName, showFrame, self.currentBigImage)
         self.viewPort.setCurrentImage(currentImage)
-        self.viewPort.updateViewPort()
+        if not silentDraw:
+            self.viewPort.updateViewPort()
 
     def requestViewPortDraw(self):
         if self.generationThread.isActive():
@@ -564,31 +577,30 @@ class PaintingEditor(QWidget):
             traceback.print_exc()
 
     def autoSetComboBoxes(self, filename):
-        return
+        options = {}
         try:
             if self.updating == True:
                 return
-            options = filename.split("-")
-            paintingName = options[0]
-            for size, painting_list in self.paintings.items():
+            filename_split = filename.split("-")
+            paintingName = filename_split[0]
+            for size, painting_list in self.optionsPanel.paintings.items():
                 for painting in painting_list:
                     if painting == paintingName:
-                        self.size_combo_box.setCurrentText(size)
+                        options['size'] = size
                         break
-            self.painting_combo_box.setCurrentText(paintingName)
-
-            if len(options) > 1:
-                for option in options:
-                    if option.isdigit():
-                        if int(option) in range(1,17):
-                            self.detail_spin_box.setValue(int(option))
-                    elif option.title() in self.scaleOptions:
-                        self.scale_combo_box.setCurrentText(option.title())
-                self.frame_combo_box.setCurrentText(options[1])
-            self.setMetaData()
-        except:
-            #REMOVE_print("WARN: Failed to parse auto values")
-            pass
+            options['paintingName'] = paintingName
+            if len(filename_split) > 1:
+                for item in filename_split:
+                    if item.isdigit():
+                        if int(item) in range(1,17):
+                            options['detail'] = detail
+                    elif item.title() in self.optionsPanel.scaleOptions:
+                        options['scale_method'] = item.title()
+                options['frameName'] = filename_split[1]
+            self.optionsPanel.setData(options)
+        except Exception as e:
+            print(f"WARN: Failed to parse auto values: {e}")
+            traceback.print_exc()
 
     def resource_path(self, file):
         if getattr(sys, 'frozen', False):
@@ -608,6 +620,10 @@ class packAssetList(QListWidget):
         font.setPointSize(9)
         self.setFont(font)
 
+        self.assets = {}
+
+    def newPack(self):
+        self.clear()
         self.assets = {}
 
     def getAsset(self, asset):
@@ -640,7 +656,6 @@ class packAssetList(QListWidget):
         deleted_asset_data = self.assets.pop(asset_id, None)
         return deleted_asset_data
 
-
 class PackControls(QWidget):
 
     def __init__(self, parent):
@@ -650,7 +665,6 @@ class PackControls(QWidget):
         self.packCreated = False
         self.saveFile = None
         self.changesSaved = True
-        self.used_paintings = {}
         self.packData = {}
         PackConrols_layout = QVBoxLayout()
 
@@ -682,6 +696,13 @@ class PackControls(QWidget):
         self.setMinimumWidth(250)
         self.setMaximumWidth(350)
 
+    def newPack(self, packData=False):
+        if packData:
+            self.setPackInfo(packData)
+        self.listwidget.newPack()
+        self.changesSaved = True
+        self.saveFile = None
+
     def updateButtonEnabled(self):
         if self.listwidget.count() == 0:
             self.export_button.setEnabled(False)
@@ -689,14 +710,6 @@ class PackControls(QWidget):
         else:
             self.export_button.setEnabled(True)
             return True
-
-    def reset(self, packData=False):
-        self.used_paintings = {}
-        if packData:
-            self.setPackInfo(packData)
-        self.changesSaved = True
-        self.saveFile = None
-        self.listwidget.clear()
 
     def setPackInfo(self, packData):
         self.packCreated = True
@@ -820,55 +833,88 @@ class PackControls(QWidget):
             self.notify(f"Resource Pack saved to {file}")
             #QMessageBox.information(self, "Pack Saved", f"Resource Pack saved to\n{file}")
 
+    def convert_pson(self, pson, PSON_VER):
+        did_conversion = False
+        if 'paintings' not in pson:
+            # Support Legacy
+            converted = {}
+            converted['pson'] = {
+                'pson_version': PSON_VER,
+                'title': "Null",
+                'icon': None,
+                'meta': {
+                    "pack": {
+                        "description": f"{Null}",
+                        "pack_format": number
+                    }
+                }
+            }
+            converted['paintings'] = pson
+            QMessageBox.warning(self, "Draft Read Error", f"Could not parse the draft meta data, it may have been made in a older version or is currupted.\n\nPlease set the meta data now")
+            self.parent.editPackInfo(False)
+            did_conversion = True
+        elif 'pson_format' not in pson['pson']:
+            # Support v1.4.0 and under
+            converted = pson
+            converted['pson']['pson_format'] = PSON_VER
+            did_conversion = True
+        elif pson['pson']['pson_format'] == PSON_VER:
+            # Current
+            converted = pson
+        else:
+            # Future
+            QMessageBox.warning(self, "Draft Read Error", f"This draft was made in a newer version. Do you have a time machine maybe? No conversion will be attempted but I will attempt to load it now. Makes changes at your own risk!")
+            converted = pson
+        return converted, did_conversion
+
     def openDraft(self, file_name):
         with open(file_name) as f:
-            loaded_paintings = json.load(f)
-        if 'paintings' not in loaded_paintings:
-            self.loadDraft(loaded_paintings)
+            inData = json.load(f)
+        loaded_assets, did_conversion = self.convert_pson(inData, 2)
+        self.parent.newPack(loaded_assets['pson'])
+        self.loadDraft(loaded_assets['paintings'])
+        if did_conversion:
+            shutil.copy(file_name, f"{file_name}.bak")
+            self.saveDraft(file_name)
         else:
-            self.loadDraft(loaded_paintings['paintings'])
-        self.saveFile = file_name
-        self.changesSaved = True
+            self.saveFile = file_name
+            self.changesSaved = True
 
 
     def loadDraft(self, loaded_paintings):
         self.changesSaved = False
-        dialog = LoadingDialog(self)
-        i=1
-        self.reset()
-        self.parent.reset()
-        dialog.show_loading(len(loaded_paintings))
-        self.lock = False
+
         failedPaintings = ""
+        assets_loaded = 1
         failedCount = 0
-        self.used_paintings = {}
-        for paintingName in loaded_paintings:
-            paintingMetaData = loaded_paintings[paintingName]
-            #print(paintingName, paintingMetaData)
-            #try:
-            self.used_paintings[paintingName] = loaded_paintings[paintingName]
-            #self.used_paintings.pop(paintingName, None) # why do i do this?
-            self.parent.setCurrentData(paintingName, paintingMetaData)
-            self.parent.setCurrentImage(paintingMetaData['file_path'])
-            self.parent.setCurrentData(paintingName, paintingMetaData)
+        dialog = LoadingDialog(self)
+        dialog.show_loading(len(loaded_paintings))
+
+        self.parent.newPack()
+
+        for asset_id in loaded_paintings:
+            dialog.update_progress_signal.emit(assets_loaded)
+            asset_data = loaded_paintings[asset_id]
+            file_path = asset_data['file_path']
+            self.parent.setData(asset_data)
+            success = self.parent.setCurrentImage(file_path)
             QApplication.processEvents()
-            self.writeImage()
-            dialog.update_progress_signal.emit(i)
-            i+=1
-            #except:
-            #    if failedCount < 4:
-            #        path = paintingMetaData['file_path']
-            #        failedPaintings += f"    {path}\n"
-            #    failedCount += 1
+            if success:
+                self.writeImage()
+            else:
+                if failedCount < 4:
+                    failedPaintings += f"    {file_path}\n"
+                failedCount += 1
+            assets_loaded+=1
+        dialog.close_dialog()
+
         if failedPaintings != "":
             if failedCount > 4:
                 failedPaintings += f"    And {failedCount-4} more...\n"
             QMessageBox.warning(self, "File Read Error", f"The following files are no longer readable:\n{failedPaintings}\nThey may be missing or lack read permissisons.")
-        with open("loaded_paintings.json", "w") as fp:
-                json.dump(loaded_paintings, fp, indent=4)
-        with open("Mem_dump.json", "w") as fp:
-                json.dump(self.used_paintings, fp, indent=4)
-        dialog.close_dialog()
+            return False
+        else:
+            return True
 
     def saveDraft(self, file=False):
         directory = os.path.join(os.path.expanduser("~"), "Documents", f"{self.packName}.pson")
@@ -879,10 +925,11 @@ class PackControls(QWidget):
             self.changesSaved = True
             dump = {
                 'pson': self.packData,
-                'paintings': self.used_paintings
+                'paintings': self.listwidget.assets
             }
             with open(file, "w") as fp:
                 json.dump(dump, fp, indent=4)
+                #json.dump(dump, fp)
             self.notify(f"Draft saved to {file}")
             traceback.print_exc()
             #QMessageBox.information(self, "Draft Saved", f"Draft saved to\n{file}")
