@@ -355,9 +355,15 @@ class PaintingStudio(QMainWindow):
 def set_theme(app):
     desktop = ""
     try:
-        app.setStyle("Adwaita-Dark")
-    except:
-        print("Failed to load!")
+        qt_based = [
+            "plasma"
+        ]
+        desktop = os.environ.get('DESKTOP_SESSION')
+        if not any(sub in desktop for sub in qt_based):
+            app.setStyle("Adwaita-Dark")
+    except Exception as e:
+        traceback.print_exc()
+        print(f"Failed to get env: {e}")
         pass
     current_style = app.style().objectName()
     if desktop == "" or current_style == "windowsvista":
