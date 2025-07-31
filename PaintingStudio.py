@@ -360,8 +360,10 @@ def set_theme(app):
         ]
         desktop = os.environ.get('DESKTOP_SESSION')
         if not any(sub in desktop for sub in gtk_based):
+            print("Setting Darkmode")
             app.setStyle("Adwaita-Dark")
     except:
+        print("Failed to load!")
         pass
     current_style = app.style().objectName()
     if desktop == "" or current_style == "windowsvista":
