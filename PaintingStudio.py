@@ -355,13 +355,7 @@ class PaintingStudio(QMainWindow):
 def set_theme(app):
     desktop = ""
     try:
-        qt_based = [
-            "plasma"
-        ]
-        desktop = os.environ.get('DESKTOP_SESSION')
-        if not any(sub in desktop for sub in gtk_based):
-            print("Setting Darkmode")
-            app.setStyle("Adwaita-Dark")
+        app.setStyle("Adwaita-Dark")
     except:
         print("Failed to load!")
         pass
