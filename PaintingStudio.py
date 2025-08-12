@@ -150,6 +150,8 @@ class PaintingStudio(QMainWindow):
         # Set the whole window to accept drops
         self.setButtonEnabled(False)
         #self.setAcceptDrops(True)
+        with open(ResourcePath('assets', 'facts.json'), 'r') as file:
+            self.resource_facts = json.load(file)
 
     ## Frame Code ##
 
@@ -207,7 +209,7 @@ class PaintingStudio(QMainWindow):
     def editPackInfo(self, packData=None):
         if packData == None:
             packData = self.packConrols.packData
-        dialog = InputDialog(self, packData)
+        dialog = InputDialog(self, self.resource_facts['release_pack_formats'], packData)
         if dialog.exec_() == QDialog.Accepted:
             title, description, number, icon = dialog.get_data()
             self.paintingEditor.newPack()
@@ -240,7 +242,7 @@ class PaintingStudio(QMainWindow):
             return
 
         # Create and show the input dialog
-        dialog = InputDialog(self)
+        dialog = InputDialog(self, self.resource_facts['release_pack_formats'])
 
         # Check if the dialog was accepted
         if dialog.exec_() == QDialog.Accepted:

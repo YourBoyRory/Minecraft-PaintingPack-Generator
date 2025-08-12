@@ -226,7 +226,7 @@ class LoadingDialog(QDialog):
 
 class InputDialog(QDialog):
 
-    def __init__(self, parent, currData=False):
+    def __init__(self, parent, release_formats, currData=False):
         super().__init__(parent)
         self.icon = None
         self.setWindowTitle("Create New Pack")
@@ -243,11 +243,11 @@ class InputDialog(QDialog):
                 'meta': {
                     "pack": {
                         "description": "My Painting Pack",
-                        "pack_format": 64
+                        "pack_format": release_formats[-1]
                     }
                 }
             }
-            self.format_limit = 4
+            self.format_limit = release_formats[0]
         else:
             self.editMode = True
             self.format_limit = currData['meta']['pack']['pack_format']

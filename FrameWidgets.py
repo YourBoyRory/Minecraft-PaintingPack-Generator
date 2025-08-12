@@ -407,16 +407,16 @@ class PaintingEditor(QWidget):
         PaintingEditor_Layout.addWidget(ToolBar)
         self.setLayout(PaintingEditor_Layout)
 
-    def loadPaintings(self):
+    def loadPaintings(self, recource_facts):
         try:
             pack_format = self.packConrols.packData['meta']['pack']['pack_format']
         except:
             print("format unset defaulting to demo mode")
             pack_format = 65535 # idk man
-        with open(self.resource_path('paintings.json'), 'r') as file:
+        with open(self.resource_path('facts.json'), 'r') as file:
             json_in = json.load(file)
             master_list = {}
-            for format_num, data in json_in.items():
+            for format_num, data in json_in['paintings'].items():
                 if int(format_num) <= int(pack_format):
                     #REMOVE_print(format_num, pack_format)
                     for size, paint_list in data.items():
