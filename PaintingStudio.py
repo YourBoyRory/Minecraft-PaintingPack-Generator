@@ -17,7 +17,7 @@ from FrameDialog import LoadingDialog, InputDialog, HelpDialog, BatchEditDialog,
 from FrameWidgets import PackControls, PaintingEditor
 
 # Version Information
-VER_STRING = "v1.5.0"
+VER_STRING = "v1.5.1"
 PSON_VER = 1
 
 def ResourcePath(folder, file):
@@ -55,10 +55,9 @@ class UpdateCheckWorker(QThread):
             current_version = tuple(map(int, re.sub(r'[^0-9.]', '', VER_STRING).split(".")))
             if latest_version > current_version:
                 msg_title="Update Available"
-                msg_body=f"""<b>A new version is available!</b><br>
-                <p style=\"color: #A6A6A6;\">{latest_body.split('\r\n',1)[1].replace('\r\n','<br>')}</p>
-                Download {latest_verStr}:<br> <a href='{latest_url}'>{latest_url}</a>
-                """
+                changeLog = latest_body.split('\r\n',1)[1].replace('\r\n','<br>')
+                msg_body=f"""<b>A new version is available!</b><br><p style=\"color: #A6A6A6;\">{changeLog}</p>
+                Download {latest_verStr}:<br> <a href='{latest_url}'>{latest_url}</a>"""
                 self.progress.emit(msg_title, msg_body, QMessageBox.Information, "Update Available! [Help] > [Check for Updates]", 6000)
             else:
                 self.progress.emit("","", None, "You are up to date!", 2000)

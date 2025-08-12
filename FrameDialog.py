@@ -2,7 +2,9 @@ from PyQt5.QtCore import Qt, QUrl, QSize, QTimer, QStringListModel, pyqtSignal
 from PyQt5.QtGui import QPixmap, QImage, QIcon, QColor, QFont
 from PyQt5.QtWidgets import QScrollArea, QSlider, QMainWindow, QMessageBox, QMenuBar, QDialog, QColorDialog, QFormLayout, QLineEdit, QMenu, QAction, QListWidgetItem, QListWidget, QTabWidget, QApplication, QWidget, QVBoxLayout, QComboBox, QLabel, QFrame, QHBoxLayout, QFileDialog, QSizePolicy, QSpinBox, QPushButton
 from PyQt5.QtWidgets import QApplication, QStyleFactory, QProgressBar, QSpacerItem, QCheckBox, QTextBrowser
+from DialogWidgets import PackSpinBox
 import webbrowser
+import math
 import json
 import sys
 import os
@@ -255,9 +257,9 @@ class InputDialog(QDialog):
         self.title_input.textChanged.connect(self.feild_validation)
         self.description_input = QLineEdit(currData['meta']['pack']['description'])
         self.description_input.textChanged.connect(self.feild_validation)
-        self.number_input = QSpinBox()
-        self.number_input.setValue(currData['meta']['pack']['pack_format'])      # Most up to date pact format as of relase
-        self.number_input.setRange(self.format_limit, 65535)  # Surely they add more paintings before Format 65535
+        self.number_input = PackSpinBox(self.format_limit, currData['meta']['pack']['pack_format'])
+        self.number_input.setFixedWidth(150)
+
         packFormatLayout.addWidget(self.number_input)
         self.packFormatLink = QPushButton("Help")
         packFormatLayout.addWidget(self.packFormatLink)
@@ -305,7 +307,10 @@ class InputDialog(QDialog):
             self.accept()
 
     def get_data(self):
-        return self.title_input.text(), self.description_input.text(), self.number_input.value(), self.icon
+        value = self.number_input.value()
+        if value < 65.0:
+            value = int(math.floor(value))
+        return self.title_input.text(), self.description_input.text(), value, self.icon
 
     def feild_validation(self):
         if not self.title_input.text().strip() or not self.description_input.text().strip():
