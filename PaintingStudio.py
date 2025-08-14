@@ -17,7 +17,7 @@ from FrameDialog import LoadingDialog, InputDialog, HelpDialog, BatchEditDialog,
 from FrameWidgets import PackControls, PaintingEditor
 
 # Version Information
-VER_STRING = "v1.5.1"
+VER_STRING = "v1.5.0"
 PSON_VER = 1
 
 def ResourcePath(folder, file):
@@ -93,7 +93,7 @@ class PaintingStudio(QMainWindow):
         # generated stuff
         self.setWindowTitle(f"Minecraft Painting Studio - {VER_STRING}")
         self.setWindowIcon(QIcon(ResourcePath("assets", "icon.png")))
-        self.setGeometry(100, 100, 1000, 600)
+        self.setGeometry(100, 100, 1000, 700)
 
 
         """Menu Bar"""
@@ -183,20 +183,20 @@ class PaintingStudio(QMainWindow):
         dialog = BatchEditDialog(self)
         if dialog.exec_() == QDialog.Accepted:
             data = dialog.get_data()
-            new_draft = self.packConrols.used_paintings
-            for painting in new_draft:
+            pack_assets = self.packConrols.listwidget.assets
+            for painting in pack_assets:
                 if data['detail'] != False:
-                    new_draft['paintings'][painting]['detail'] = data['detail']
+                    pack_assets[painting]['detail'] = data['detail']
                 if  data['scale_method'] != False:
-                    new_draft['paintings'][painting]['scale_method'] = data['scale_method']
+                    pack_assets[painting]['scale_method'] = data['scale_method']
                 if data['frameName'] != False:
                     if data['frameName'] == "Default":
-                        new_draft['paintings'][painting]['frameName'] = painting
+                        pack_assets[painting]['frameName'] = painting
                     else:
-                        new_draft['paintings'][painting]['frameName'] = "None"
+                        pack_assets[painting]['frameName'] = "None"
                 if data['background_color'] != False:
-                    new_draft['paintings'][painting]['background_color'] = data['background_color']
-            self.packConrols.loadDraft(new_draft)
+                    pack_assets[painting]['background_color'] = data['background_color']
+            self.packConrols.loadDraft(pack_assets)
 
     def convert_pson(self):
         pson = {}
@@ -207,12 +207,11 @@ class PaintingStudio(QMainWindow):
         dialog.exec_()
 
     def editPackInfo(self, packData=None):
-        if packData == None:
+        if packData == False:
             packData = self.packConrols.packData
         dialog = InputDialog(self, self.resource_facts['release_pack_formats'], packData)
         if dialog.exec_() == QDialog.Accepted:
             title, description, number, icon = dialog.get_data()
-            self.paintingEditor.newPack()
             #remove self. later
             self.packName = title
             new_packData = {
@@ -227,7 +226,7 @@ class PaintingStudio(QMainWindow):
                 }
             }
             self.packConrols.setPackInfo(new_packData)
-            self.paintingEditor.reset()
+            self.paintingEditor.updatePaintings()
 
 
     def makeNewPack(self):
@@ -299,6 +298,9 @@ class PaintingStudio(QMainWindow):
             QMessageBox.warning(self, "Draft Load Error", f"An error occured when reading the draft's data:\n\n{e}")
 
     # =============================================================
+
+    def resetForNextImage(self):
+        self.paintingEditor.resetForNextImage()
 
     def generateImage(self, image=None, options=None, silentDraw=False):
         self.paintingEditor.generateImage(image, options, silentDraw)

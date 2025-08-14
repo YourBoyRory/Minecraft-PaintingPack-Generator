@@ -4,7 +4,7 @@ import sys
 
 class PaintingGenerator:
 
-    def makePaiting(self, scale, scale_method, background_color, painting, showFrame, art):
+    def makePaiting(self, scale, scale_method, offset, background_color, painting, showFrame, art):
 
         self.scale = scale
         self.background_color = background_color
@@ -28,7 +28,7 @@ class PaintingGenerator:
         elif scale_method == "Fit":
             art_scaled = self.fit(art, target_width, target_height)
         elif scale_method == "Crop":
-            art_scaled = self.crop(art, target_width, target_height)
+            art_scaled = self.crop(art, target_width, target_height, offset)
         if showFrame:
             art_size = (target_width-(self.scale*2), target_height-(self.scale*2))
             diff = (self.scale,self.scale)
@@ -65,18 +65,18 @@ class PaintingGenerator:
         blackout.paste(art_resized, diff, art_resized.convert('RGBA'))
         return blackout
 
-    def crop(self, art, target_width, target_height):
+    def crop(self, art, target_width, target_height, offset):
         art_width, art_height = art.size
         blackout = Image.new('RGB', (target_width, target_height), color = self.background_color)
 
         new_width = target_width
         new_height = int((art_height / art_width) * target_width)
-        diff = (0,(target_height-new_height)//2)
+        diff = (0,int((target_height-new_height)*offset))
         if (new_height < target_height) or (new_width < target_width):
             print("Warning: Switching Methods")
             new_height = target_height
             new_width = int((art_width / art_height) * target_height)
-            diff = ((target_width-new_width)//2, 0)
+            diff = (int((target_width-new_width)*offset), 0)
 
         art_size = (new_width, new_height)
         art_resized = art.resize(art_size)

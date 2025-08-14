@@ -148,22 +148,35 @@ class OptionsPanel(QWidget):
         lable_width = 120
         detail_layout = QHBoxLayout()
         self.detail_spin_box = QSpinBox(self)
-        self.detail_spin_box.setRange(1, 16)  # Set the valid range (1 to 100)
+        self.detail_spin_box.setRange(1, 32)  # Set the valid range (1 to 100)
         self.detail_spin_box.setValue(1)  # Set the initial value
+        #self.normalizeDetail_checkBox = QCheckBox('Auto', self)
         detail_label = QLabel('Detail: ')
         detail_label.setMaximumWidth(lable_width)
         detail_layout.addWidget(detail_label)
         detail_layout.addWidget(self.detail_spin_box)
+        #detail_layout.addWidget(self.normalizeDetail_checkBox)
 
         """ Scale Method """
-        scale_layout = QHBoxLayout()
+        scale_layout = QVBoxLayout()
+        scale_layout_row1 = QHBoxLayout()
         self.scale_combo_box = QComboBox(self)
         scale_label = QLabel('Scale Method: ')
         scale_label.setMaximumWidth(lable_width)
-        scale_layout.addWidget(scale_label)
+        scale_layout_row1.addWidget(scale_label)
         self.scaleOptions = ["Stretch", "Fit", "Crop"]
         self.scale_combo_box.addItems(self.scaleOptions)
-        scale_layout.addWidget(self.scale_combo_box)
+        scale_layout_row1.addWidget(self.scale_combo_box)
+        scale_layout.addLayout(scale_layout_row1)
+        self.scale_offset_slider = QSlider(Qt.Horizontal)
+        self.scale_offset_slider.setEnabled(False)
+        self.scale_offset_slider.setMinimum(0)
+        self.scale_offset_slider.setMaximum(100)
+        self.scale_offset_slider.setValue(self.scale_offset_slider.maximum()//2)
+        self.scale_offset_slider.setTickPosition(QSlider.TicksBelow)
+        self.scale_offset_slider.setTickInterval(self.scale_offset_slider.maximum()//2)
+        scale_layout.addWidget(self.scale_offset_slider)
+
 
         """ Backgroud Color """
         color_button_layout = QHBoxLayout()
@@ -199,6 +212,7 @@ class OptionsPanel(QWidget):
         self.options['detail'] = self.detail_spin_box.value()
         self.options['background_color'] = "#000000"
         self.options['scale_method'] = self.scale_combo_box.currentText()
+        self.options['scale_offset'] = self.scale_offset_slider.value()/self.scale_offset_slider.maximum()
         self.options['size'] = self.size_combo_box.currentText()
         self.updateComboBox()
         self.options['frameName'] = self.frame_combo_box.currentText()
@@ -208,6 +222,7 @@ class OptionsPanel(QWidget):
         self.size_combo_box.currentIndexChanged.connect(self.updateSize)
         self.painting_combo_box.currentIndexChanged.connect(self.updatePainting)
         self.scale_combo_box.currentIndexChanged.connect(self.updateScale)
+        self.scale_offset_slider.valueChanged.connect(self.updateOffset)
         self.frame_combo_box.currentIndexChanged.connect(self.updateFrame)
 
         # Add Layouts
@@ -222,18 +237,25 @@ class OptionsPanel(QWidget):
         PaintingOptions_layout.addStretch()
         self.setLayout(PaintingOptions_layout)
         self.setMinimumWidth(250)
-        self.setMaximumWidth(350)
+        self.setMaximumWidth(300)
 
         self.lock = False
 
-    def newPack(self, paintings):
-        self.used_paintings = []
+    def resetForNextImage(self):
+        self.lock = True
+        self.scale_offset_slider.setValue(self.scale_offset_slider.maximum()//2)
+        self.lock = False
+
+    def updatePaintings(self, paintings):
         self.paintings = paintings
-        self.lock = False
         self.size_combo_box.clear()
         for key in self.paintings:
             self.size_combo_box.addItem(key)
         self.updateComboBox()
+
+    def newPack(self, paintings):
+        self.used_paintings = []
+        self.updatePaintings(paintings)
 
     def getData(self):
         return self.options
@@ -242,6 +264,8 @@ class OptionsPanel(QWidget):
         new_options = self.options | data
         self.detail_spin_box.setValue(new_options["detail"])
         self.scale_combo_box.setCurrentText(new_options["scale_method"])
+        if new_options["scale_method"] == "Crop":
+            self.scale_offset_slider.setValue(int(new_options["scale_offset"]*self.scale_offset_slider.maximum()))
         self.size_combo_box.setCurrentText(new_options["size"])
         self.painting_combo_box.setCurrentText(new_options["paintingName"])
         if "frameName" in data:
@@ -308,8 +332,18 @@ class OptionsPanel(QWidget):
         if not self.lock:
             self.parent.requestViewPortDraw()
 
+    def updateOffset(self):
+        self.options['scale_offset'] = self.scale_offset_slider.value()/self.scale_offset_slider.maximum()
+        if not self.lock:
+            self.parent.requestViewPortDraw(32)
+
     def updateScale(self):
         self.options['scale_method'] = self.scale_combo_box.currentText()
+        if self.options['scale_method'] != "Crop":
+            self.scale_offset_slider.setEnabled(False)
+        else:
+            self.scale_offset_slider.setEnabled(True)
+        #self.scale_offset_slider.setValue(self.scale_offset_slider.maximum()//2)
         if not self.lock:
             self.parent.requestViewPortDraw()
 
@@ -407,7 +441,7 @@ class PaintingEditor(QWidget):
         PaintingEditor_Layout.addWidget(ToolBar)
         self.setLayout(PaintingEditor_Layout)
 
-    def loadPaintings(self, recource_facts):
+    def loadPaintings(self):
         try:
             pack_format = self.packConrols.packData['meta']['pack']['pack_format']
         except:
@@ -427,6 +461,12 @@ class PaintingEditor(QWidget):
             paintings = dict(sorted(master_list.items()))
         return paintings
 
+    def resetForNextImage(self):
+        self.optionsPanel.resetForNextImage()
+
+    def updatePaintings(self):
+        self.optionsPanel.updatePaintings(self.loadPaintings())
+
     def newPack(self):
         self.painting_maker = PaintingGenerator()
         self.optionsPanel.newPack(self.loadPaintings())
@@ -440,7 +480,7 @@ class PaintingEditor(QWidget):
         # Get the dropped file path
         try:
             for file in event.mimeData().urls():
-                ext = Path(file.toLocalFile()).name.split(".")[1].lower()
+                ext = Path(file.toLocalFile()).name.split(".")[-1].lower()
                 if ext == "pson" or ext == "json":
                     self.parent.loadFromFile(file.toLocalFile())
                     return
@@ -492,7 +532,7 @@ class PaintingEditor(QWidget):
         self.init_stack_count = len(self.file_path_stack)
         # Process image
         self.lock = False
-        return self.getNextImage()
+        return self.getNextImage(False)
 
     def getCurrentImageData(self):
         options_data = self.optionsPanel.getData()
@@ -503,7 +543,7 @@ class PaintingEditor(QWidget):
     def getCurrentImage(self):
         return self.viewPort.getCurrentImage()
 
-    def getNextImage(self):
+    def getNextImage(self, autoSet=True):
         #REMOVE_print(self.file_path_stack)
         if len(self.file_path_stack) > 0:
             try:
@@ -519,8 +559,9 @@ class PaintingEditor(QWidget):
                     self.art_path = url.toLocalFile()
                     imageLoad = self.art_path
                     self.art_url = url.toString()
-                file_name = Path(self.art_path).name.split(".")[0].lower()
-                self.autoSetComboBoxes(file_name)
+                    if autoSet:
+                        file_name = Path(self.art_path).name.split(".")[0].lower()
+                        self.autoSetComboBoxes(file_name)
                 self.generateImage(imageLoad)
                 self.viewPort.updateViewPort()
                 curr = self.init_stack_count-len(self.file_path_stack)
@@ -551,6 +592,7 @@ class PaintingEditor(QWidget):
             options = self.optionsPanel.getData()
         detail = options['detail']
         scale_method = options['scale_method']
+        scale_offset = options['scale_offset']
         size = options['size']
         painting = options['paintingName']
         frame = options['frameName']
@@ -563,22 +605,24 @@ class PaintingEditor(QWidget):
             showFrame = True
             frameName = frame
 
-        currentImage = self.painting_maker.makePaiting(detail, scale_method, background_color, frameName, showFrame, self.currentBigImage)
+        currentImage = self.painting_maker.makePaiting(detail, scale_method, scale_offset, background_color, frameName, showFrame, self.currentBigImage)
         self.viewPort.setCurrentImage(currentImage)
         if not silentDraw:
             self.viewPort.updateViewPort()
 
-    def requestViewPortDraw(self):
+    def requestViewPortDraw(self, delta=None):
         if self.generationThread.isActive():
             return
         if self.lock == True:
             return
         try:
-            self.generateImage()
-            #self.generationThread.start(16) # 16ms frame delta, limit to 60fps
+            if delta != None:
+                self.generationThread.start(delta) # 16ms frame delta, limit to 60fps
+            else:
+                self.generateImage() # Skip Delta
         except Exception as e:
             self.viewPort.displayText(f"Failed to open image: {str(e)}")
-            traceback.print_exc()
+            #traceback.print_exc()
 
     def autoSetComboBoxes(self, filename):
         options = {}
@@ -667,6 +711,7 @@ class PackControls(QWidget):
         self.parent = parent
 
         self.packCreated = False
+        self.pack_builder = None
         self.saveFile = None
         self.changesSaved = True
         self.packData = {}
@@ -723,7 +768,10 @@ class PackControls(QWidget):
         packIcon = self.packData['icon']
         formatNumber = packMeta['pack']['pack_format']
         packDescription = packMeta['pack']['description']
-        self.pack_builder = ResourcePackBuilder(packMeta)
+        if self.pack_builder != None:
+            self.pack_builder.updateMeta(packMeta)
+        else:
+            self.pack_builder = ResourcePackBuilder(packMeta)
         try:
             pil_image = Image.open(packIcon).convert('RGB')
             pil_image_resized = pil_image.resize((64,64))
@@ -817,6 +865,7 @@ class PackControls(QWidget):
         self.parent.removePainting(imageData)
 
         # Reset UI
+        self.parent.resetForNextImage()
         self.parent.getNextImage()
 
     def exportPack(self):
@@ -855,7 +904,7 @@ class PackControls(QWidget):
             }
             converted['paintings'] = pson
             QMessageBox.warning(self, "Draft Read Error", f"Could not parse the draft meta data, it may have been made in a older version or is currupted.\n\nPlease set the meta data now")
-            self.parent.editPackInfo(False)
+            self.parent.editPackInfo()
             did_conversion = True
         elif 'pson_format' not in pson['pson']:
             # Support v1.4.0 and under

@@ -13,6 +13,11 @@ class ResourcePackBuilder:
             packMeta = json.dumps(mcMeta, indent=4)
             self.addFile("pack.mcmeta", str(packMeta))
 
+    def updateMeta(self, mcMeta):
+        packMeta = json.dumps(mcMeta, indent=4)
+        self.delFile("pack.mcmeta")
+        self.addFile("pack.mcmeta", str(packMeta))
+
     def addFile(self, filePath, file):
         self.packData[filePath] = file
 

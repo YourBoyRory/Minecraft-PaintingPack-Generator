@@ -47,8 +47,8 @@ class BatchEditDialog(QDialog):
         detail_layout.addWidget(detail_enable)
         # Spinner
         self.detail_spin_box = QSpinBox(self)
-        self.detail_spin_box.setRange(1, 16)  # Set the valid range (1 to 100)
-        self.detail_spin_box.setValue(1)  # Set the initial value
+        self.detail_spin_box.setRange(1, 32)
+        self.detail_spin_box.setValue(1)
         self.detail_spin_box.setEnabled(False)
         detail_enable.stateChanged.connect(lambda state: self.setEnable(state, self.detail_spin_box))
         detail_layout.addWidget(self.detail_spin_box)
@@ -158,7 +158,7 @@ class BatchEditDialog(QDialog):
         self.requestViewPortDraw()
 
 class HelpDialog(QDialog):
-    def __init__(self, parent):
+    def __init__(self, parent, showPage=None):
         super().__init__(parent)
         self.setWindowTitle('Help')
         self.setMinimumHeight(400)
@@ -167,8 +167,12 @@ class HelpDialog(QDialog):
         self.tab_widget = QTabWidget(self)
         with open(self.resourcePath('src', 'help.json'), 'r') as file:
             help_pages = json.load(file)
+        page_count = 0
         for page in help_pages:
             self.addPage(page, help_pages[page])
+            if page == showPage:
+                self.tab_widget.setCurrentIndex(page_count)
+            page_count+=1
         layout.addWidget(self.tab_widget)
         self.setLayout(layout)
 
@@ -226,7 +230,7 @@ class LoadingDialog(QDialog):
 
 class InputDialog(QDialog):
 
-    def __init__(self, parent, release_formats, currData=False):
+    def __init__(self, parent, release_formats, currData=None):
         super().__init__(parent)
         self.icon = None
         self.setWindowTitle("Create New Pack")
@@ -235,7 +239,7 @@ class InputDialog(QDialog):
         # Create form layout
         layout = QFormLayout()
         packFormatLayout = QHBoxLayout()
-        if not currData:
+        if currData == None:
             self.editMode = False
             currData = {
                 'title': "PaintingPack",
@@ -257,7 +261,7 @@ class InputDialog(QDialog):
         self.title_input.textChanged.connect(self.feild_validation)
         self.description_input = QLineEdit(currData['meta']['pack']['description'])
         self.description_input.textChanged.connect(self.feild_validation)
-        self.number_input = PackSpinBox(self.format_limit, currData['meta']['pack']['pack_format'])
+        self.number_input = PackSpinBox(release_formats, self.format_limit, currData['meta']['pack']['pack_format'])
         self.number_input.setFixedWidth(150)
 
         packFormatLayout.addWidget(self.number_input)
@@ -296,7 +300,9 @@ class InputDialog(QDialog):
         self.cancel_button.clicked.connect(self.reject)
 
     def packFormat_Info(self):
-        webbrowser.open_new_tab("https://minecraft.wiki/w/Pack_format#List_of_resource_pack_formats")
+        dialog = HelpDialog(self, "Pack Format")
+        dialog.exec_()
+        #webbrowser.open_new_tab("https://minecraft.wiki/w/Pack_format#List_of_resource_pack_formats")
 
     def verify_changes(self):
         if self.editMode and self.number_input.value() != self.format_limit:
