@@ -23,6 +23,7 @@ class ViewPort(QGraphicsView):
         super().__init__()
         self.parent = parent
         self.displayingImage = False
+        self.displayingPlaceHolder = False
         self.current_zoom = 0.4 # start zoom
         self.minZoom = 0.1
         self.maxZoom = 3.0
@@ -41,11 +42,33 @@ class ViewPort(QGraphicsView):
     def setCurrentImage(self, image):
         self.currentImage = image
 
+    def setPlaceHolderImage(self, placeHolder):
+        self.displayingPlaceHolder = True
+        pil_image = placeHolder.convert("RGB")
+        data = pil_image.tobytes("raw", "RGB")
+        qim = QImage(data, pil_image.width, pil_image.height, QImage.Format_RGB888)
+        pixmap = QPixmap(QPixmap.fromImage(qim))
+
+        width = 1024
+        height = 1024
+        if not self.parent.keepPaintingSize_checkBox.isChecked():
+            size_split = size.split('x')
+            if len(size_split) < 2:
+                size_split = ["2","2"]
+            width = 256*int(size_split[0])
+            height = 256*int(size_split[1])
+
+        # Load Silently
+        scene = QGraphicsScene(self)
+        scene.addPixmap(pixmap)
+        self.setScene(scene)
+
     def updateViewPort(self):
         pil_image = self.currentImage.convert("RGB")
         data = pil_image.tobytes("raw", "RGB")
         qim = QImage(data, pil_image.width, pil_image.height, QImage.Format_RGB888)
         pixmap = QPixmap(QPixmap.fromImage(qim))
+        size = self.parent.optionsPanel.getData()['size']
         width = 1024
         height = 1024
         if not self.parent.keepPaintingSize_checkBox.isChecked():
@@ -75,7 +98,7 @@ class ViewPort(QGraphicsView):
         event.accept()  # Mark the event as handled
 
     def setZoom(self, zoom):
-        if self.displayingImage:
+        if self.displayingImage or self.displayingPlaceHolder:
             self.resetTransform()
             self.scale(zoom , zoom)
         #print(zoom)
@@ -84,6 +107,7 @@ class ViewPort(QGraphicsView):
 
     def loadImage(self, pixmap):
         self.displayingImage = True
+        self.displayingPlaceHolder = False
         self.setZoom(self.current_zoom)
         self.setDragMode(QGraphicsView.ScrollHandDrag)
 
@@ -96,6 +120,7 @@ class ViewPort(QGraphicsView):
 
     def displayText(self, text):
         self.displayingImage = False
+        self.displayingPlaceHolder = False
         self.currentImage = None
         self.resetTransform()
         self.setDragMode(QGraphicsView.NoDrag)
@@ -149,6 +174,7 @@ class OptionsPanel(QWidget):
         detail_layout = QHBoxLayout()
         self.detail_spin_box = QSpinBox(self)
         self.detail_spin_box.setRange(1, 32)  # Set the valid range (1 to 100)
+        self.detail_spin_box.setToolTip("The amount of pixels the image has, 16x16 is essentially lossless in game. View Help for more info.")
         self.detail_spin_box.setValue(1)  # Set the initial value
         #self.normalizeDetail_checkBox = QCheckBox('Auto', self)
         detail_label = QLabel('Detail: ')
@@ -165,10 +191,12 @@ class OptionsPanel(QWidget):
         scale_label.setMaximumWidth(lable_width)
         scale_layout_row1.addWidget(scale_label)
         self.scaleOptions = ["Stretch", "Fit", "Crop"]
+        self.scale_combo_box.setToolTip("The method that is used to scale the image in the frame.")
         self.scale_combo_box.addItems(self.scaleOptions)
         scale_layout_row1.addWidget(self.scale_combo_box)
         scale_layout.addLayout(scale_layout_row1)
         self.scale_offset_slider = QSlider(Qt.Horizontal)
+        self.scale_offset_slider.setToolTip("This slider pans the image when using the 'Crop' scale method.")
         self.scale_offset_slider.setEnabled(False)
         self.scale_offset_slider.setMinimum(0)
         self.scale_offset_slider.setMaximum(100)
@@ -181,12 +209,14 @@ class OptionsPanel(QWidget):
         """ Backgroud Color """
         color_button_layout = QHBoxLayout()
         self.color_button = QPushButton('Choose Backgroud Color', self)
+        self.color_button.setToolTip("The color that is used as the background if the final image contains tranperency.")
         self.color_button.clicked.connect(self.showColorDialog)
         color_button_layout.addWidget(self.color_button)
 
         """ Painting Size """
         size_layout = QHBoxLayout()
         self.size_combo_box = QComboBox(self)
+        self.size_combo_box.setToolTip("The size of the in game painting you want to replace.")
         size_label = QLabel('Painting Size: ')
         size_label.setMaximumWidth(lable_width)
         size_layout.addWidget(size_label)
@@ -195,6 +225,7 @@ class OptionsPanel(QWidget):
         """ Painting """
         painting_layout = QHBoxLayout()
         self.painting_combo_box = QComboBox(self)
+        self.painting_combo_box.setToolTip("The in game painting you want to replace.")
         painting_label = QLabel('Painting: ')
         painting_label.setMaximumWidth(lable_width)
         painting_layout.addWidget(painting_label)
@@ -203,10 +234,17 @@ class OptionsPanel(QWidget):
         """ Frame """
         frame_layout = QHBoxLayout()
         self.frame_combo_box = QComboBox(self)
+        self.frame_combo_box.setToolTip("The minecraft frame you would like to use around your picure.")
         frame_label = QLabel('Frame: ')
         frame_label.setMaximumWidth(lable_width//2)
         frame_layout.addWidget(frame_label)
         frame_layout.addWidget(self.frame_combo_box)
+
+        """Auto Option"""
+        autoSet_layout = QHBoxLayout()
+        self.autoSet_checkBox = QCheckBox('Auto Set Options', self)
+        self.autoSet_checkBox.setToolTip("Picks the best painting based off the image's name and size. View Help for more info.")
+        autoSet_layout.addWidget(self.autoSet_checkBox)
 
         # Populate Data
         self.options['detail'] = self.detail_spin_box.value()
@@ -234,6 +272,7 @@ class OptionsPanel(QWidget):
         PaintingOptions_layout.addLayout(size_layout)
         PaintingOptions_layout.addLayout(painting_layout)
         PaintingOptions_layout.addLayout(frame_layout)
+        PaintingOptions_layout.addLayout(autoSet_layout)
         PaintingOptions_layout.addStretch()
         self.setLayout(PaintingOptions_layout)
         self.setMinimumWidth(250)
@@ -257,11 +296,25 @@ class OptionsPanel(QWidget):
         self.used_paintings = []
         self.updatePaintings(paintings)
 
+    def getSizes(self):
+        return [self.size_combo_box.itemText(i) for i in range(self.size_combo_box.count())]
+
     def getData(self):
         return self.options
 
+    def autoSetState(self, status=None):
+        print("Status Call:", status)
+        if status == "Enable":
+            self.autoSet_checkBox.setEnabled(True)
+        elif status == "Disable":
+            self.autoSet_checkBox.setEnabled(False)
+        elif isinstance(status, bool):
+            self.autoSet_checkBox.setChecked(status)
+        return self.autoSet_checkBox.isEnabled() and self.autoSet_checkBox.isChecked()
+
     def setData(self, data={}):
         new_options = self.options | data
+        self.options['background_color'] = new_options['background_color']
         self.detail_spin_box.setValue(new_options["detail"])
         self.scale_combo_box.setCurrentText(new_options["scale_method"])
         if new_options["scale_method"] == "Crop":
@@ -419,6 +472,7 @@ class PaintingEditor(QWidget):
         self.path_label.setMinimumWidth(1)
         #self.path_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
         self.keepPaintingSize_checkBox = QCheckBox('Auto Scale', self)
+        self.keepPaintingSize_checkBox.setToolTip("Scales images in the view port to all being the same size rather then relative to their in game size rather then.")
         self.keepPaintingSize_checkBox.setChecked(True)
         self.keepPaintingSize_checkBox.stateChanged.connect(self.requestViewPortDraw)
         self.view_slider = QSlider(Qt.Horizontal)
@@ -446,7 +500,7 @@ class PaintingEditor(QWidget):
             pack_format = self.packConrols.packData['meta']['pack']['pack_format']
         except:
             print("format unset defaulting to demo mode")
-            pack_format = 65535 # idk man
+            pack_format = int("inf")
         with open(self.resource_path('facts.json'), 'r') as file:
             json_in = json.load(file)
             master_list = {}
@@ -543,7 +597,10 @@ class PaintingEditor(QWidget):
     def getCurrentImage(self):
         return self.viewPort.getCurrentImage()
 
-    def getNextImage(self, autoSet=True):
+    def autoSetState(self, status=None):
+        return self.optionsPanel.autoSetState(status)
+
+    def getNextImage(self, autoDisableAutoSet=False):
         #REMOVE_print(self.file_path_stack)
         if len(self.file_path_stack) > 0:
             try:
@@ -553,15 +610,15 @@ class PaintingEditor(QWidget):
                     self.art_url = url.toString()
                     response = requests.get(self.art_path)
                     img_data = BytesIO(response.content)
-                    imageLoad = img_data
+                    imageLoad = Image.open(img_data)
                     #REMOVE_print(response.status_code)
                 else:
                     self.art_path = url.toLocalFile()
-                    imageLoad = self.art_path
                     self.art_url = url.toString()
-                    if autoSet:
-                        file_name = Path(self.art_path).name.split(".")[0].lower()
-                        self.autoSetComboBoxes(file_name)
+                    imageLoad = Image.open(self.art_path).convert('RGB')
+                if self.autoSetState():
+                    file_name = Path(self.art_path).name.split(".")[0].lower()
+                    self.autoSetComboBoxes(file_name, imageLoad)
                 self.generateImage(imageLoad)
                 self.viewPort.updateViewPort()
                 curr = self.init_stack_count-len(self.file_path_stack)
@@ -586,7 +643,7 @@ class PaintingEditor(QWidget):
     def generateImage(self, image=None, options=None, silentDraw=False):
         # Load image
         if image != None:
-            self.currentBigImage = Image.open(image)
+            self.currentBigImage = image
         # Getting Options
         if options == None:
             options = self.optionsPanel.getData()
@@ -614,6 +671,8 @@ class PaintingEditor(QWidget):
         if self.generationThread.isActive():
             return
         if self.lock == True:
+            #placeHolder = self.painting_maker.callPainting('kebab')
+            #self.viewPort.setPlaceHolderImage(placeHolder)
             return
         try:
             if delta != None:
@@ -624,7 +683,13 @@ class PaintingEditor(QWidget):
             self.viewPort.displayText(f"Failed to open image: {str(e)}")
             #traceback.print_exc()
 
-    def autoSetComboBoxes(self, filename):
+    def autoSetComboBoxes(self, filename, image):
+        width, height = image.size
+        pixels = image.load()
+        actual_ratio =  height / width
+        smallest_diff = float("inf")
+        sizes = [i for i in self.optionsPanel.getSizes() if i != "Elemental"]
+        target_ratios = [tuple(map(int, s.split('x'))) for s in sizes]
         options = {}
         try:
             if self.updating == True:
@@ -634,9 +699,37 @@ class PaintingEditor(QWidget):
             for size, painting_list in self.optionsPanel.paintings.items():
                 for painting in painting_list:
                     if painting == paintingName:
+                        options['paintingName'] = paintingName
                         options['size'] = size
                         break
-            options['paintingName'] = paintingName
+            if 'size' not in options:
+                for w, h in target_ratios:
+                    ratio = h / w # Prioritize Landscape
+                    diff = abs(actual_ratio - ratio)
+                    if diff <= smallest_diff:
+                        smallest_diff = diff
+                        options['size'] = f"{w}x{h}"
+            border_pixels = []
+            border_thickness=1
+            # Top border
+            for y in range(border_thickness):
+                for x in range(width):
+                    border_pixels.append(pixels[x, y])
+            # Bottom border
+            for y in range(height - border_thickness, height):
+                for x in range(width):
+                    border_pixels.append(pixels[x, y])
+            # Left and Right borders
+            for y in range(border_thickness, height - border_thickness):
+                for x in range(border_thickness):
+                    border_pixels.append(pixels[x, y])  # Left
+                    border_pixels.append(pixels[width - 1 - x, y])  # Right
+            num_pixels = len(border_pixels)
+            r = sum(p[0] for p in border_pixels) // num_pixels
+            g = sum(p[1] for p in border_pixels) // num_pixels
+            b = sum(p[2] for p in border_pixels) // num_pixels
+            options['background_color'] = '#{:02x}{:02x}{:02x}'.format(r, g, b)
+            print(options['background_color'])
             if len(filename_split) > 1:
                 for item in filename_split:
                     if item.isdigit():
@@ -823,11 +916,13 @@ class PackControls(QWidget):
     def editImage(self, asset):
         try:
             self.changesSaved = False
+            self.parent.autoSetState("Disable")
             deleted_asset_data = self.listwidget.removeAsset(asset)
             self.parent.addPainting(deleted_asset_data)
             self.parent.setData(deleted_asset_data)
             self.parent.setCurrentImage(deleted_asset_data['file_path'])
         except:
+            self.parent.autoSetState("Enable")
             traceback.print_exc()
             self.notify(f"File no longer readable. It may be missing or lack read permissisons.")
             #QMessageBox.information(self, "File Read Error", "File no longer readable. It may be missing or lack read permissisons.")
@@ -865,6 +960,7 @@ class PackControls(QWidget):
         self.parent.removePainting(imageData)
 
         # Reset UI
+        self.parent.autoSetState("Enable")
         self.parent.resetForNextImage()
         self.parent.getNextImage()
 

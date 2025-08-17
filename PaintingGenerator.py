@@ -9,7 +9,7 @@ class PaintingGenerator:
         self.scale = scale
         self.background_color = background_color
 
-        frame = Image.open(self.resource_path(painting + ".png")).convert('RGBA')
+        frame = self.callPainting(painting)
 
         # The Maff :3
         pack_res = 16*self.scale
@@ -39,6 +39,9 @@ class PaintingGenerator:
         painting.paste(art_resized, diff, art_resized.convert('RGBA'))
 
         return painting
+
+    def callPainting(self, painting):
+        return Image.open(self.resource_path(painting + ".png")).convert('RGBA')
 
     def stretch(self, art, target_width, target_height):
         art_size = (target_width, target_height)

@@ -299,6 +299,9 @@ class PaintingStudio(QMainWindow):
 
     # =============================================================
 
+    def autoSetState(self, status=None):
+        self.paintingEditor.autoSetState(status)
+
     def resetForNextImage(self):
         self.paintingEditor.resetForNextImage()
 
