@@ -6,6 +6,7 @@ sudo cp ./*.py /opt/MCPaintingStudio/
 sudo cp -r ./assets /opt/MCPaintingStudio/
 sudo cp -r ./styles /opt/MCPaintingStudio/
 sudo cp -r ./src /opt/MCPaintingStudio/
+sudo chmod 666 /opt/MCPaintingStudio/assets/facts.json
 
 # install venv and dependecies
 sudo python -m venv /opt/MCPaintingStudio/venv

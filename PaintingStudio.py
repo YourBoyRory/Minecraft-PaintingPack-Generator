@@ -33,7 +33,7 @@ except:
     RESOURCE_FACTS = {}
     traceback.print_exc()
 FACTS_VER_STRING = RESOURCE_FACTS.get("facts_version","NA")
-VER_STRING = "V1.5.1" # This is updated on code changes only
+VER_STRING = "V1.4.1" # This is updated on code changes only
 
 class UpdateCheckWorker(QThread):
     progress = pyqtSignal(str, str, object, object, str, int)
@@ -69,7 +69,7 @@ class UpdateCheckWorker(QThread):
                     self.progress.emit(msg_title, msg_body, QMessageBox.Information, QMessageBox.Ok, "Update Available! [Help] > [Check for Updates]", 6000)
                 else:
                     self.progress.emit("","", None, None,"You are up to date!", 2000)
-                return True
+                    return True
             except Exception as e:
                 traceback.print_exc()
                 if not self.autoCheckup:
@@ -107,15 +107,23 @@ class UpdateCheckWorker(QThread):
             try:
                 self.new_facts = response.json()
                 latest_version = tuple(map(int, re.sub(r'[^0-9.]', '', self.new_facts.get('facts_version', 'v0.0.0')).split(".")))
+                latest_supported_program_version = tuple(map(int, re.sub(r'[^0-9.]', '', self.new_facts.get('supported_program_version', 'v0.0.0')).split(".")))
+                current_program_version = tuple(map(int, re.sub(r'[^0-9.]', '', VER_STRING).split(".")))
                 with open(ResourcePath('assets', 'facts.json'), 'r') as file:
                     current_facts = json.load(file)
                 current_version = tuple(map(int, re.sub(r'[^0-9.]', '', FACTS_VER_STRING).split(".")))
                 if latest_version > current_version:
-                    msg_title="Painting Database Update Available"
-                    msg_body=f"""<b>The painting database has an update available</b><br>
-                    <p style=\"color: #A6A6A6;\">This brings proper support for new paiting and pack formats</p>"""
-                    self.progress.emit(msg_title, msg_body, QMessageBox.Information, QMessageBox.Yes | QMessageBox.No, "Database Update Available!", 6000)
-                return True
+                    print("New database found: ", self.new_facts)
+                    if latest_supported_program_version <= current_program_version:
+                        msg_title="Painting Database Update Available"
+                        msg_body=f"""<b>The painting database has an update available</b><br>
+                        <p style=\"color: #A6A6A6;\">This brings proper support for new paiting and pack formats</p>"""
+                        self.progress.emit(msg_title, msg_body, QMessageBox.Information, QMessageBox.Yes | QMessageBox.No, "Database Update Available!", 6000)
+                    else:
+                        print("Program outdated with master branch. Wait for new release to get new database.")
+                        # If this VER_STRING is less then latest_supported_program_version then there should program version update notification
+                        # otherwise, the new program version isnt ready for download anyways.
+                        pass
             except Exception as e:
                 traceback.print_exc()
                 if not self.autoCheckup:
@@ -130,7 +138,6 @@ class UpdateCheckWorker(QThread):
                     self.progress.emit("","", None, None, f"Database Update Check Failed - Runtime Error: {e}", 6000)
         else:
             print(f"Filed to get facts: {status_code}")
-        return False
 
     def getNewFacts(self):
         return self.new_facts
@@ -138,8 +145,8 @@ class UpdateCheckWorker(QThread):
     def run(self):
         self.progress.emit("", "", None, None, "Checking for updates...", 15000)
         QApplication.processEvents()
-        checkSuccess = self.checkProgramUpdates()
-        if checkSuccess:
+        programUpToDate = self.checkProgramUpdates()
+        if programUpToDate:
             self.checkFactsUpdates()
         if self.autoCheckup:
             self.autoCheckup = False
@@ -248,12 +255,15 @@ class PaintingStudio(QMainWindow):
             if status_window_buttons != QMessageBox.Ok:
                 reply = msg_box.getReply()
                 if reply == QMessageBox.Yes:
-                    new_facts = self.updateChecker.getNewFacts()
-                    with open(ResourcePath('assets', 'facts.json'), 'w') as file:
-                        json.dump(new_facts, file)
-                    self.notify("Painting database updated pending restart.", 6000)
-                    MessageDialog(self, "Painting database have been updated. The program will need to be restarted for this to take effect.", "Facts Updated!", QMessageBox.Information, QMessageBox.Ok)
-
+                    try:
+                        new_facts = self.updateChecker.getNewFacts()
+                        with open(ResourcePath('assets', 'facts.json'), 'w') as file:
+                            json.dump(new_facts, file)
+                        self.notify("Painting database updated pending restart.", 6000)
+                        MessageDialog(self, "Painting database have been updated. The program will need to be restarted for this to take effect.", "Facts Updated!", QMessageBox.Information, QMessageBox.Ok)
+                    except Exception as e:
+                        traceback.print_exc()
+                        self.notify(f"Failed to update database file: {e}", 6000)
     def checkForUpdates(self):
         self.updateChecker.start()
 
