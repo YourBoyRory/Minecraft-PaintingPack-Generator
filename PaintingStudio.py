@@ -17,7 +17,7 @@ from FrameDialog import LoadingDialog, InputDialog, HelpDialog, BatchEditDialog,
 from FrameWidgets import PackControls, PaintingEditor
 
 # Version Information
-VER_STRING = "v1.5.0"
+
 PSON_VER = 1
 
 def ResourcePath(folder, file):
@@ -26,19 +26,26 @@ def ResourcePath(folder, file):
     else:
         base_path = os.path.dirname(__file__)
     return os.path.join(base_path, folder, file)
+try:
+    with open(ResourcePath('assets', 'facts.json'), 'r') as file:
+        RESOURCE_FACTS = json.load(file)
+except:
+    RESOURCE_FACTS = {}
+    traceback.print_exc()
+FACTS_VER_STRING = RESOURCE_FACTS.get("facts_version","NA")
+VER_STRING = "V1.5.1" # This is updated on code changes only
 
 class UpdateCheckWorker(QThread):
-    progress = pyqtSignal(str, str, object, str, int)
+    progress = pyqtSignal(str, str, object, object, str, int)
+    token=False
+    new_facts = {}
 
     def setAutoUpdateMode(self, autoCheckup=True):
         self.autoCheckup = autoCheckup
 
-    def run(self):
-        self.progress.emit("", "", None, "Checking for updates...", 15000)
-        QApplication.processEvents()
-        token=False
+    def checkProgramUpdates(self):
         url = f"https://api.github.com/repos/YourBoyRory/Minecraft-PaintingPack-Generator/releases/latest"
-        headers = {"Authorization": f"token {token}"} if token else {}
+        headers = {"Authorization": f"token {self.token}"} if self.token else {}
 
         try:
             response = requests.get(url, headers=headers)
@@ -47,20 +54,34 @@ class UpdateCheckWorker(QThread):
             status_code = 418
 
         if status_code == 200:
-            release = response.json()
-            latest_url = release['html_url']
-            latest_verStr = release['tag_name']
-            latest_body = release['body']
-            latest_version = tuple(map(int, re.sub(r'[^0-9.]', '', latest_verStr).split(".")))
-            current_version = tuple(map(int, re.sub(r'[^0-9.]', '', VER_STRING).split(".")))
-            if latest_version > current_version:
-                msg_title="Update Available"
-                changeLog = latest_body.split('\r\n',1)[1].replace('\r\n','<br>')
-                msg_body=f"""<b>A new version is available!</b><br><p style=\"color: #A6A6A6;\">{changeLog}</p>
-                Download {latest_verStr}:<br> <a href='{latest_url}'>{latest_url}</a>"""
-                self.progress.emit(msg_title, msg_body, QMessageBox.Information, "Update Available! [Help] > [Check for Updates]", 6000)
-            else:
-                self.progress.emit("","", None, "You are up to date!", 2000)
+            try:
+                release = response.json()
+                latest_url = release['html_url']
+                latest_verStr = release['tag_name']
+                latest_body = release['body']
+                latest_version = tuple(map(int, re.sub(r'[^0-9.]', '', latest_verStr).split(".")))
+                current_version = tuple(map(int, re.sub(r'[^0-9.]', '', VER_STRING).split(".")))
+                if latest_version > current_version:
+                    msg_title="Update Available"
+                    changeLog = latest_body.split('\r\n',1)[1].replace('\r\n','<br>')
+                    msg_body=f"""<b>A new version is available!</b><br><p style=\"color: #A6A6A6;\">{changeLog}</p>
+                    Download {latest_verStr}:<br> <a href='{latest_url}'>{latest_url}</a>"""
+                    self.progress.emit(msg_title, msg_body, QMessageBox.Information, QMessageBox.Ok, "Update Available! [Help] > [Check for Updates]", 6000)
+                else:
+                    self.progress.emit("","", None, None,"You are up to date!", 2000)
+                return True
+            except Exception as e:
+                traceback.print_exc()
+                if not self.autoCheckup:
+                    error_string = traceback.format_exc()
+                    msg_title="Update Check Failed"
+                    msg_body=f"""<b>Update Check Failed!</b><br><br>
+                        <p style=\"color: #A6A6A6;\">Runtime Error: {e}</p>
+                        <p style=\"color: #A6A6A6;\">{error_string}</p>
+                    """
+                    self.progress.emit(msg_title, msg_body, QMessageBox.Warning, QMessageBox.Ok, f"Update Check Failed - Runtime Error: {e}", 6000)
+                else:
+                    self.progress.emit("","", None, None, f"Update Check Failed - Runtime Error: {e}", 6000)
         else:
             if not self.autoCheckup:
                 msg_title="Update Check Failed"
@@ -68,9 +89,58 @@ class UpdateCheckWorker(QThread):
                     Failed to check updates, maybe you have no internet?
                     <p style=\"color: #A6A6A6;\">HTTP Status: {status_code}</p>
                 """
-                self.progress.emit(msg_title, msg_body, QMessageBox.Warning, f"Update Check Failed - Status: {status_code}", 6000)
+                self.progress.emit(msg_title, msg_body, QMessageBox.Warning, QMessageBox.Ok, f"Update Check Failed - Status: {status_code}", 6000)
             else:
-                self.progress.emit("","", None, f"Update Check Failed - Status: {status_code}", 6000)
+                self.progress.emit("","", None, None, f"Update Check Failed - Status: {status_code}", 6000)
+        return False
+
+    def checkFactsUpdates(self):
+        url = f"https://raw.githubusercontent.com/YourBoyRory/Minecraft-PaintingPack-Generator/refs/heads/master/assets/facts.json"
+        headers = {"Authorization": f"token {self.token}"} if self.token else {}
+
+        try:
+            response = requests.get(url, headers=headers)
+            status_code = response.status_code
+        except:
+            status_code = 418
+        if status_code == 200:
+            try:
+                self.new_facts = response.json()
+                latest_version = tuple(map(int, re.sub(r'[^0-9.]', '', self.new_facts.get('facts_version', 'v0.0.0')).split(".")))
+                with open(ResourcePath('assets', 'facts.json'), 'r') as file:
+                    current_facts = json.load(file)
+                current_version = tuple(map(int, re.sub(r'[^0-9.]', '', FACTS_VER_STRING).split(".")))
+                if latest_version > current_version:
+                    msg_title="Painting Database Update Available"
+                    msg_body=f"""<b>The painting database has an update available</b><br>
+                    <p style=\"color: #A6A6A6;\">This brings proper support for new paiting and pack formats</p>"""
+                    self.progress.emit(msg_title, msg_body, QMessageBox.Information, QMessageBox.Yes | QMessageBox.No, "Database Update Available!", 6000)
+                return True
+            except Exception as e:
+                traceback.print_exc()
+                if not self.autoCheckup:
+                    error_string = traceback.format_exc()
+                    msg_title="Update Check Failed"
+                    msg_body=f"""<b>Update Check Failed!</b><br><br>
+                        <p style=\"color: #A6A6A6;\">Runtime Error: {e}</p>
+                        <p style=\"color: #A6A6A6;\">{error_string}</p>
+                    """
+                    self.progress.emit(msg_title, msg_body, QMessageBox.Warning, QMessageBox.Ok, f"Database Update Check Failed - Runtime Error: {e}", 6000)
+                else:
+                    self.progress.emit("","", None, None, f"Database Update Check Failed - Runtime Error: {e}", 6000)
+        else:
+            print(f"Filed to get facts: {status_code}")
+        return False
+
+    def getNewFacts(self):
+        return self.new_facts
+
+    def run(self):
+        self.progress.emit("", "", None, None, "Checking for updates...", 15000)
+        QApplication.processEvents()
+        checkSuccess = self.checkProgramUpdates()
+        if checkSuccess:
+            self.checkFactsUpdates()
         if self.autoCheckup:
             self.autoCheckup = False
 
@@ -168,13 +238,21 @@ class PaintingStudio(QMainWindow):
 
     ## Menu Bar ##
 
-    def setUpdateStatus(self, status_window_title, status_window_body, status_window_type, status_toast, status_toast_wait):
+    def setUpdateStatus(self, status_window_title, status_window_body, status_window_type, status_window_buttons, status_toast, status_toast_wait):
         if status_toast != "":
             self.notify(status_toast, status_toast_wait)
         if status_window_title != "" or status_window_body != "":
             msg_title=status_window_title
             msg_body=status_window_body
-            msg_box = MessageDialog(self, msg_body, msg_title, status_window_type)
+            msg_box = MessageDialog(self, msg_body, msg_title, status_window_type, status_window_buttons)
+            if status_window_buttons != QMessageBox.Ok:
+                reply = msg_box.getReply()
+                if reply == QMessageBox.Yes:
+                    new_facts = self.updateChecker.getNewFacts()
+                    with open(ResourcePath('assets', 'facts.json'), 'w') as file:
+                        json.dump(new_facts, file)
+                    self.notify("Painting database updated pending restart.", 6000)
+                    MessageDialog(self, "Painting database have been updated. The program will need to be restarted for this to take effect.", "Facts Updated!", QMessageBox.Information, QMessageBox.Ok)
 
     def checkForUpdates(self):
         self.updateChecker.start()

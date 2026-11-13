@@ -19,15 +19,19 @@ class SaveChangesDialog():
         return self.reply
 
 class MessageDialog(QMessageBox):
-    def __init__(self, parent, body, title="Warning", icon=QMessageBox.Warning):
+    def __init__(self, parent, body, title="Warning", icon=QMessageBox.Warning, buttons=QMessageBox.Ok):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.setIcon(icon)
         self.setTextFormat(Qt.RichText)
         self.setText(body)
         self.setTextInteractionFlags(Qt.TextBrowserInteraction)
-        self.setStandardButtons(QMessageBox.Ok)
-        self.exec_()
+        self.setStandardButtons(buttons)
+        self.reply = self.exec()
+
+    def getReply(self):
+        return self.reply
+
 
 class BatchEditDialog(QDialog):
     def __init__(self, parent):
